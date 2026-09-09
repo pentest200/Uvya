@@ -22,7 +22,7 @@ Use a monorepo with independently buildable services and shared contract package
 - Docker Compose for the local runtime foundation;
 - Kubernetes/Helm/Terraform and production observability assets only after the contracts they deploy are established.
 
-The first implementation contains only the web shell, API gateway, and WebSocket gateway lifecycle foundations. Domain services are not scaffolded as empty applications.
+The first implementation contains the web shell, an API gateway with the authentication foundation, and a WebSocket gateway lifecycle foundation. Domain services are not scaffolded as empty applications.
 
 ## Consequences
 
@@ -48,4 +48,4 @@ The first implementation contains only the web shell, API gateway, and WebSocket
 
 ## Follow-up
 
-The next milestone should establish authentication and device/session ownership, including its database schema, API contract, security tests, and event publication needs.
+Authentication and device/session ownership are now implemented in the API gateway. The next milestone should establish the first domain contract and its event publication needs.

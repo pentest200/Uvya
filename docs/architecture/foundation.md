@@ -16,7 +16,7 @@ The local Compose stack contains:
 - Kafka in single-node KRaft mode for future durable asynchronous events;
 - MinIO for local S3-compatible object storage.
 
-The application containers currently expose only lifecycle endpoints. They do not write messages, authenticate users, or consume external dependencies yet.
+The API gateway now exposes the authentication foundation documented separately: PostgreSQL-backed accounts, devices, sessions, and audit records; JWT access tokens; rotated opaque refresh tokens; and Redis-backed login/OTP state. Chat/message behavior and WebSocket authentication remain future contracts.
 
 ## Target evolution
 

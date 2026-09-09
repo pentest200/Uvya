@@ -1,6 +1,6 @@
 # Uvya
 
-Uvya is a production-oriented, Telegram-like real-time messaging platform being built incrementally. This repository currently contains the engineering foundation only; no authentication, chat, message, or other business feature has been implemented yet.
+Uvya is a production-oriented, Telegram-like real-time messaging platform being built incrementally. This repository contains the engineering foundation and the first authentication/security foundation; chat and messaging business features are intentionally not implemented yet.
 
 ## Foundation milestone
 
@@ -12,6 +12,7 @@ This milestone provides:
 - a Go WebSocket gateway process with liveness/readiness endpoints and graceful shutdown;
 - local PostgreSQL, Redis, Kafka in single-node KRaft mode, and MinIO;
 - architecture documentation and ADRs for the initial system shape and MVP message-storage choice;
+- a Spring Security authentication foundation with PostgreSQL accounts/devices/sessions/audit records, JWT access tokens, rotated opaque refresh cookies, and Redis-backed login/OTP state;
 - Dockerfiles, Compose orchestration, and GitHub Actions checks.
 
 Future domain services are documented boundaries, not empty placeholder applications. They will be added with their first real contract and tests.
@@ -75,7 +76,17 @@ curl --fail http://localhost:9000/minio/health/live
 docker compose ps
 ```
 
-Expected health responses include `"status":"UP"` and an `X-Request-ID` response header. The web shell is intentionally informational until a product contract is introduced.
+Expected health responses include `"status":"UP"` and an `X-Request-ID` response header.
+
+Authentication smoke test after startup:
+
+```bash
+curl -i -c cookies.txt -H 'Content-Type: application/json' \
+  -d '{"email":"alice@example.com","password":"correct horse battery staple","deviceName":"laptop"}' \
+  http://localhost:8080/v1/auth/register
+```
+
+The response contains the short-lived access token; the refresh token is set as an HttpOnly cookie. Browser clients should first call `GET /v1/auth/csrf`, then send its `X-XSRF-TOKEN` value on refresh and logout.
 
 ## Useful commands
 
@@ -144,4 +155,4 @@ Solid edges represent the currently runnable entry points. Dashed edges are deli
 
 ## Current scope and next milestone
 
-There are no database migrations in this milestone because no domain schema exists yet. The next logical milestone is authentication and device/session management, including its API contract, PostgreSQL migrations, security tests, and outbox decisions.
+Authentication details and security invariants are documented in [the authentication architecture](docs/architecture/authentication.md). Domain message schemas, outbox publication, and chat business features remain future milestones.
