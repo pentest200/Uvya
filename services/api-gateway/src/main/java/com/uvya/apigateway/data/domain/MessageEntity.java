@@ -94,6 +94,7 @@ public class MessageEntity {
     }
 
     public void delete(Instant now) {
+        body = "";
         deletedAt = now;
         editedAt = now;
         version++;

@@ -89,12 +89,6 @@ public class MessageService {
             throw new DataFoundationException("Sender device is revoked");
         }
 
-        MessageEntity duplicate = messageRepository.findByChatIdAndClientMessageIdAndSenderId(
-                command.chatId(), command.clientMessageId(), command.senderId()).orElse(null);
-        if (duplicate != null) {
-            return duplicate;
-        }
-
         String idempotencyKey = command.idempotencyKey() == null || command.idempotencyKey().isBlank()
                 ? command.clientMessageId().toString() : command.idempotencyKey();
         String requestHash = requestHash(command);
@@ -111,8 +105,17 @@ public class MessageService {
             throw new DataFoundationException("Idempotency request is incomplete");
         }
 
-        validateReference(command.replyToMessageId(), chat.getId());
-        validateReference(command.forwardedFromMessageId(), chat.getId());
+        MessageEntity duplicate = messageRepository.findByChatIdAndClientMessageIdAndSenderId(
+                command.chatId(), command.clientMessageId(), command.senderId()).orElse(null);
+        if (duplicate != null) {
+            if (!messageMatches(command, duplicate)) {
+                throw new DataFoundationException("Client message ID was reused for another message");
+            }
+            return duplicate;
+        }
+
+        validateReply(command.replyToMessageId(), chat.getId());
+        validateForward(command.forwardedFromMessageId(), command.senderId());
         Instant now = Instant.now();
         long sequence = chat.nextMessageSequence(now);
         MessageEntity message = new MessageEntity(UUID.randomUUID(), chat.getId(), command.senderId(),
@@ -149,7 +152,7 @@ public class MessageService {
         return message;
     }
 
-    private void validateReference(UUID messageId, UUID chatId) {
+    private void validateReply(UUID messageId, UUID chatId) {
         if (messageId == null) {
             return;
         }
@@ -158,6 +161,28 @@ public class MessageService {
         if (!chatId.equals(reference.getChatId())) {
             throw new DataFoundationException("Referenced message belongs to another chat");
         }
+    }
+
+    private void validateForward(UUID messageId, UUID senderId) {
+        if (messageId == null) {
+            return;
+        }
+        MessageEntity reference = messageRepository.findById(messageId)
+                .orElseThrow(() -> new DataFoundationException("Forwarded message not found"));
+        if (reference.getStatus() == com.uvya.apigateway.data.domain.MessageStatus.DELETED
+                || !memberRepository.isActiveMember(reference.getChatId(), senderId)) {
+            throw new DataFoundationException("Forwarded message is not available");
+        }
+    }
+
+    private boolean messageMatches(MessageCreationCommand command, MessageEntity message) {
+        return command.chatId().equals(message.getChatId())
+                && command.senderId().equals(message.getSenderId())
+                && command.senderDeviceId().equals(message.getSenderDeviceId())
+                && command.messageType().equals(message.getMessageType())
+                && java.util.Objects.equals(command.body() == null ? "" : command.body(), message.getBody())
+                && java.util.Objects.equals(command.replyToMessageId(), message.getReplyToMessageId())
+                && java.util.Objects.equals(command.forwardedFromMessageId(), message.getForwardedFromMessageId());
     }
 
     private String requestHash(MessageCreationCommand command) {
