@@ -14,6 +14,7 @@ This milestone provides:
 - architecture documentation and ADRs for the initial system shape and MVP message-storage choice;
 - a Spring Security authentication foundation with PostgreSQL accounts/devices/sessions/audit records, JWT access tokens, rotated opaque refresh cookies, and Redis-backed login/OTP state;
 - a Phase 1 PostgreSQL data foundation with chats, memberships, explicitly sequenced messages, reactions, versions, inbox/read state, blocks, idempotency, a transactional outbox, and versioned event schemas;
+- a User Service foundation with privacy-aware profiles, discoverability, blocked-user enforcement, paginated lookup, hashed contact matching, mutual-contact detection, and Redis profile caching;
 - Dockerfiles, Compose orchestration, and GitHub Actions checks.
 
 Future domain services are documented boundaries, not empty placeholder applications. They will be added with their first real contract and tests.
@@ -151,10 +152,11 @@ Solid edges represent the currently runnable entry points. Dashed edges are deli
 - [Foundation architecture](docs/architecture/foundation.md)
 - [Engineering conventions](docs/architecture/engineering-conventions.md)
 - [Phase 1 data-foundation audit](docs/architecture/phase-1-audit.md)
+- [User Service architecture](docs/architecture/user-service.md)
 - [ADR-001: Initial architecture](docs/adr/ADR-001-initial-architecture.md)
 - [ADR-002: MVP message storage](docs/adr/ADR-002-postgresql-for-mvp-message-storage.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## Current scope and next milestone
 
-Authentication details and security invariants are documented in [the authentication architecture](docs/architecture/authentication.md). Phase 1 persistence and shared event contracts are documented in [the data-foundation audit](docs/architecture/phase-1-audit.md) and [the contracts package](packages/contracts/events/README.md). Message HTTP APIs, frontend functionality, and Kafka consumers remain future milestones.
+Authentication details and security invariants are documented in [the authentication architecture](docs/architecture/authentication.md). Phase 1 persistence, shared event contracts, and the User Service are documented in [the data-foundation audit](docs/architecture/phase-1-audit.md), [the contracts package](packages/contracts/events/README.md), and [the User Service architecture](docs/architecture/user-service.md). Message HTTP APIs, frontend functionality, and Kafka consumers remain future milestones.

@@ -48,7 +48,11 @@ public class SecurityConfiguration {
                         .ignoringRequestMatchers(
                                 new AntPathRequestMatcher("/v1/auth/register", HttpMethod.POST.name()),
                                 new AntPathRequestMatcher("/v1/auth/login", HttpMethod.POST.name()),
-                                new AntPathRequestMatcher("/v1/auth/devices", HttpMethod.POST.name())))
+                                new AntPathRequestMatcher("/v1/auth/devices", HttpMethod.POST.name()),
+                                new AntPathRequestMatcher("/v1/users/me", HttpMethod.PATCH.name()),
+                                new AntPathRequestMatcher("/v1/users/contacts", HttpMethod.POST.name()),
+                                new AntPathRequestMatcher("/v1/users/*/block", HttpMethod.POST.name()),
+                                new AntPathRequestMatcher("/v1/users/*/block", HttpMethod.DELETE.name())))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/health/**", "/actuator/health/**", "/v1/auth/csrf").permitAll()
@@ -72,7 +76,7 @@ public class SecurityConfiguration {
     CorsConfigurationSource corsConfigurationSource(AuthProperties properties) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.getCors().getAllowedOrigins());
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Request-ID", "X-XSRF-TOKEN"));
         configuration.setExposedHeaders(Arrays.asList("X-Request-ID"));
         configuration.setAllowCredentials(true);

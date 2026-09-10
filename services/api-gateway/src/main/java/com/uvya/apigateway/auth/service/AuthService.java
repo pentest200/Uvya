@@ -8,6 +8,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import com.uvya.apigateway.auth.web.DeviceResponse;
 import com.uvya.apigateway.auth.web.LoginRequest;
 import com.uvya.apigateway.auth.web.RegisterRequest;
 import com.uvya.apigateway.auth.web.SessionResponse;
+import com.uvya.apigateway.user.service.UserIdentifierService;
 
 @Service
 public class AuthService {
@@ -37,11 +39,21 @@ public class AuthService {
     private final TokenService tokenService;
     private final AuthRateLimiter rateLimiter;
     private final AuditService auditService;
+    private final UserIdentifierService userIdentifierService;
 
     public AuthService(UserRepository userRepository, DeviceRepository deviceRepository,
             AuthSessionRepository sessionRepository, PasswordEncoder passwordEncoder,
             AuthProperties properties, TokenHashingService tokenHashingService, TokenService tokenService,
             AuthRateLimiter rateLimiter, AuditService auditService) {
+        this(userRepository, deviceRepository, sessionRepository, passwordEncoder, properties, tokenHashingService,
+                tokenService, rateLimiter, auditService, null);
+    }
+
+    @Autowired
+    public AuthService(UserRepository userRepository, DeviceRepository deviceRepository,
+            AuthSessionRepository sessionRepository, PasswordEncoder passwordEncoder,
+            AuthProperties properties, TokenHashingService tokenHashingService, TokenService tokenService,
+            AuthRateLimiter rateLimiter, AuditService auditService, UserIdentifierService userIdentifierService) {
         this.userRepository = userRepository;
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
@@ -51,6 +63,7 @@ public class AuthService {
         this.tokenService = tokenService;
         this.rateLimiter = rateLimiter;
         this.auditService = auditService;
+        this.userIdentifierService = userIdentifierService;
     }
 
     @Transactional(noRollbackFor = AuthException.class)
@@ -66,6 +79,9 @@ public class AuthService {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {
             throw new AuthException("Unable to create account");
+        }
+        if (userIdentifierService != null) {
+            userIdentifierService.indexEmail(user.getId(), email);
         }
         DeviceEntity device = createDevice(user.getId(), request.deviceId(), request.deviceName(), context);
         IssuedTokens tokens = createSession(user, device, context, now);
