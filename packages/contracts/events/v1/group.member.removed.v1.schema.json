@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://uvya.dev/contracts/events/v1/group.member.removed.v1.schema.json",
+  "title": "Uvya group.member.removed v1",
+  "allOf": [
+    { "$ref": "./event-envelope.v1.schema.json" },
+    { "properties": { "eventType": { "const": "group.member.removed" }, "payload": { "type": "object", "required": ["chatId", "userId"], "properties": { "chatId": { "type": "string", "format": "uuid" }, "userId": { "type": "string", "format": "uuid" } } } }, "required": ["eventType", "payload"] }
+  ]
+}

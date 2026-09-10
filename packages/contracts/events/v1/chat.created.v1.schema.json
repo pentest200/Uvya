@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://uvya.dev/contracts/events/v1/chat.created.v1.schema.json",
+  "title": "Uvya chat.created v1",
+  "allOf": [
+    { "$ref": "./event-envelope.v1.schema.json" },
+    { "properties": { "eventType": { "const": "chat.created" }, "payload": { "type": "object", "required": ["chatId", "createdBy", "chatType"], "properties": { "chatId": { "type": "string", "format": "uuid" }, "createdBy": { "type": "string", "format": "uuid" }, "chatType": { "type": "string" }, "title": { "type": ["string", "null"] } } } }, "required": ["eventType", "payload"] }
+  ]
+}

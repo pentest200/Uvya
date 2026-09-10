@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://uvya.dev/contracts/events/v1/message.reaction.added.v1.schema.json",
+  "title": "Uvya message.reaction.added v1",
+  "allOf": [
+    { "$ref": "./event-envelope.v1.schema.json" },
+    { "properties": { "eventType": { "const": "message.reaction.added" }, "payload": { "type": "object", "required": ["messageId", "chatId", "userId", "reactionType"], "properties": { "messageId": { "type": "string", "format": "uuid" }, "chatId": { "type": "string", "format": "uuid" }, "userId": { "type": "string", "format": "uuid" }, "reactionType": { "type": "string", "minLength": 1 } } } }, "required": ["eventType", "payload"] }
+  ]
+}

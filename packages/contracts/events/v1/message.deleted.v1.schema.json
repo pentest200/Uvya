@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://uvya.dev/contracts/events/v1/message.deleted.v1.schema.json",
+  "title": "Uvya message.deleted v1",
+  "allOf": [
+    { "$ref": "./event-envelope.v1.schema.json" },
+    { "properties": { "eventType": { "const": "message.deleted" }, "payload": { "type": "object", "required": ["messageId", "chatId", "deletedBy", "version"], "properties": { "messageId": { "type": "string", "format": "uuid" }, "chatId": { "type": "string", "format": "uuid" }, "deletedBy": { "type": "string", "format": "uuid" }, "version": { "type": "integer", "minimum": 1 } } } }, "required": ["eventType", "payload"] }
+  ]
+}

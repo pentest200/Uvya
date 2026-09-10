@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://uvya.dev/contracts/events/v1/message.edited.v1.schema.json",
+  "title": "Uvya message.edited v1",
+  "allOf": [
+    { "$ref": "./event-envelope.v1.schema.json" },
+    { "properties": { "eventType": { "const": "message.edited" }, "payload": { "type": "object", "required": ["messageId", "chatId", "editorId", "version", "messageType", "body"], "properties": { "messageId": { "type": "string", "format": "uuid" }, "chatId": { "type": "string", "format": "uuid" }, "editorId": { "type": "string", "format": "uuid" }, "version": { "type": "integer", "minimum": 1 }, "messageType": { "type": "string" }, "body": { "type": "string" } } } }, "required": ["eventType", "payload"] }
+  ]
+}
