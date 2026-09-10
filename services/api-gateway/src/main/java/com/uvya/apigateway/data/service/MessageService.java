@@ -17,6 +17,7 @@ import com.uvya.apigateway.auth.domain.DeviceEntity;
 import com.uvya.apigateway.auth.repository.DeviceRepository;
 import com.uvya.apigateway.auth.service.AuditService;
 import com.uvya.apigateway.auth.service.RequestContext;
+import com.uvya.apigateway.chat.service.ChatAuthorizationPolicy;
 import com.uvya.apigateway.data.domain.ChatEntity;
 import com.uvya.apigateway.data.domain.IdempotencyKeyEntity;
 import com.uvya.apigateway.data.domain.MessageEntity;
@@ -42,12 +43,14 @@ public class MessageService {
     private final OutboxEventFactory eventFactory;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final ChatAuthorizationPolicy chatAuthorizationPolicy;
 
     public MessageService(ChatRepository chatRepository, ChatMemberRepository memberRepository,
             MessageRepository messageRepository, UserInboxRepository inboxRepository,
             IdempotencyKeyRepository idempotencyRepository,
             OutboxEventRepository outboxRepository, DeviceRepository deviceRepository,
-            OutboxEventFactory eventFactory, ObjectMapper objectMapper, AuditService auditService) {
+            OutboxEventFactory eventFactory, ObjectMapper objectMapper, AuditService auditService,
+            ChatAuthorizationPolicy chatAuthorizationPolicy) {
         this.chatRepository = chatRepository;
         this.memberRepository = memberRepository;
         this.messageRepository = messageRepository;
@@ -58,6 +61,7 @@ public class MessageService {
         this.eventFactory = eventFactory;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
+        this.chatAuthorizationPolicy = chatAuthorizationPolicy;
     }
 
     @Transactional
@@ -71,6 +75,11 @@ public class MessageService {
 
         ChatEntity chat = chatRepository.findByIdForUpdate(command.chatId())
                 .orElseThrow(() -> new DataFoundationException("Chat not found"));
+        try {
+            chatAuthorizationPolicy.authorizeInternalPost(command.senderId(), command.senderDeviceId(), chat);
+        } catch (com.uvya.apigateway.chat.service.ChatAuthorizationException exception) {
+            throw new DataFoundationException(exception.getMessage());
+        }
         if (!memberRepository.isActiveMember(command.chatId(), command.senderId())) {
             throw new DataFoundationException("User is not an active chat member");
         }

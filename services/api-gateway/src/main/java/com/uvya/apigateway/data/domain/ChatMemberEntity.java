@@ -21,6 +21,10 @@ public class ChatMemberEntity {
     @Column(nullable = false)
     private Instant joinedAt;
     private Instant leftAt;
+    private Instant mutedUntil;
+    private Instant archivedAt;
+    private Instant bannedAt;
+    private Instant bannedUntil;
 
     protected ChatMemberEntity() { }
 
@@ -36,6 +40,25 @@ public class ChatMemberEntity {
     public ChatMemberRole getRole() { return role; }
     public Instant getJoinedAt() { return joinedAt; }
     public Instant getLeftAt() { return leftAt; }
+    public Instant getMutedUntil() { return mutedUntil; }
+    public Instant getArchivedAt() { return archivedAt; }
+    public Instant getBannedAt() { return bannedAt; }
+    public Instant getBannedUntil() { return bannedUntil; }
 
     public void leave(Instant now) { leftAt = now; }
+
+    public void setRole(ChatMemberRole newRole) { role = newRole; }
+
+    public void muteUntil(Instant until) { mutedUntil = until; }
+
+    public void archive(Instant now) { archivedAt = now; }
+
+    public boolean isBanned(Instant now) {
+        return bannedAt != null && (bannedUntil == null || bannedUntil.isAfter(now));
+    }
+
+    public void ban(Instant now, Instant until) {
+        bannedAt = now;
+        bannedUntil = until;
+    }
 }

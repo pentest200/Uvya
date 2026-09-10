@@ -52,7 +52,12 @@ public class SecurityConfiguration {
                                 new AntPathRequestMatcher("/v1/users/me", HttpMethod.PATCH.name()),
                                 new AntPathRequestMatcher("/v1/users/contacts", HttpMethod.POST.name()),
                                 new AntPathRequestMatcher("/v1/users/*/block", HttpMethod.POST.name()),
-                                new AntPathRequestMatcher("/v1/users/*/block", HttpMethod.DELETE.name())))
+                                new AntPathRequestMatcher("/v1/users/*/block", HttpMethod.DELETE.name()),
+                                new AntPathRequestMatcher("/v1/chats", HttpMethod.POST.name()),
+                                new AntPathRequestMatcher("/v1/chats/*", HttpMethod.PATCH.name()),
+                                new AntPathRequestMatcher("/v1/chats/*/members", HttpMethod.POST.name()),
+                                new AntPathRequestMatcher("/v1/chats/*/members/*", HttpMethod.DELETE.name()),
+                                new AntPathRequestMatcher("/v1/chats/*/leave", HttpMethod.POST.name())))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/health/**", "/actuator/health/**", "/v1/auth/csrf").permitAll()

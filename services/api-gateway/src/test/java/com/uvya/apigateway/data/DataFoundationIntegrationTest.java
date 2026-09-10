@@ -96,7 +96,8 @@ class DataFoundationIntegrationTest {
     void schemaContainsEveryPhaseOneTableAndRequiredMessageColumns() {
         List<String> tables = List.of("APP_USERS", "DEVICES", "AUTH_SESSIONS", "AUTH_AUDIT_LOGS", "CHATS",
                 "CHAT_MEMBERS", "MESSAGES", "MESSAGE_REACTIONS", "MESSAGE_VERSIONS", "USER_INBOX",
-                "READ_STATES", "BLOCKED_USERS", "IDEMPOTENCY_KEYS", "OUTBOX_EVENTS");
+                "READ_STATES", "BLOCKED_USERS", "IDEMPOTENCY_KEYS", "OUTBOX_EVENTS", "CHAT_SETTINGS",
+                "CHAT_PINNED_MESSAGES");
         for (String table : tables) {
             Integer count = jdbcTemplate.queryForObject(
                     "select count(*) from information_schema.tables where table_name = ?", Integer.class, table);

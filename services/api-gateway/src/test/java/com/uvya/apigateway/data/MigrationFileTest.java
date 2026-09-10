@@ -42,6 +42,15 @@ class MigrationFileTest {
         }
     }
 
+    @Test
+    void chatServiceMigrationAddsSettingsMembershipStateAndPinsWithoutNewIdentityTables() throws IOException {
+        String migration = migration("/db/migration/V4__chat_service_foundation.sql");
+        assertThat(migration).contains("chat_settings", "chat_pinned_messages", "muted_until", "archived_at",
+                "banned_at", "banned_until", "MODERATOR", "RESTRICTED");
+        assertThat(migration).doesNotContain("CREATE TABLE app_users", "CREATE TABLE devices",
+                "CREATE TABLE auth_sessions", "CREATE TABLE auth_audit_logs", "CREATE TABLE chats");
+    }
+
     private String migration(String resource) throws IOException {
         try (InputStream stream = getClass().getResourceAsStream(resource)) {
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);

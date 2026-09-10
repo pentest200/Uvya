@@ -1,9 +1,15 @@
 package com.uvya.apigateway.data.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -18,4 +24,14 @@ public interface ChatMemberRepository extends JpaRepository<ChatMemberEntity, Ch
     List<ChatMemberEntity> findByIdUserIdAndLeftAtIsNullOrderByJoinedAtDesc(UUID userId);
 
     List<ChatMemberEntity> findByIdChatIdAndLeftAtIsNullOrderByJoinedAtAsc(UUID chatId);
+
+    Page<ChatMemberEntity> findByIdUserIdAndLeftAtIsNull(UUID userId, Pageable pageable);
+
+    Page<ChatMemberEntity> findByIdChatIdAndLeftAtIsNull(UUID chatId, Pageable pageable);
+
+    long countByIdChatIdAndLeftAtIsNull(UUID chatId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from ChatMemberEntity m where m.id.chatId = :chatId and m.id.userId = :userId")
+    Optional<ChatMemberEntity> findByIdForUpdate(@Param("chatId") UUID chatId, @Param("userId") UUID userId);
 }

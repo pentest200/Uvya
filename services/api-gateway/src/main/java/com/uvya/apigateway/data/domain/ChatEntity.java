@@ -53,4 +53,9 @@ public class ChatEntity {
         updatedAt = now;
         return lastMessageSequence;
     }
+
+    public void updateTitle(String newTitle, Instant now) {
+        title = newTitle;
+        updatedAt = now;
+    }
 }
