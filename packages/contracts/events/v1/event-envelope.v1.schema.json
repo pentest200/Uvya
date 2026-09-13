@@ -4,13 +4,14 @@
   "title": "Uvya event envelope v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "traceId", "idempotencyKey", "payload"],
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "traceId", "correlationId", "idempotencyKey", "payload"],
   "properties": {
     "eventId": { "type": "string", "format": "uuid" },
     "eventType": { "type": "string", "minLength": 1 },
     "eventVersion": { "const": 1 },
     "occurredAt": { "type": "string", "format": "date-time" },
     "traceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 },
     "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 255 },
     "payload": { "type": "object" }
   }

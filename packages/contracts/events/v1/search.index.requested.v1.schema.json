@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://uvya.dev/contracts/events/v1/search.index.requested.v1.schema.json",
+  "title": "Uvya search.index.requested v1",
+  "allOf": [
+    { "$ref": "./event-envelope.v1.schema.json" },
+    { "properties": { "eventType": { "const": "search.index.requested" }, "payload": { "type": "object", "required": ["resourceId", "resourceType", "version"], "properties": { "resourceId": { "type": "string", "format": "uuid" }, "resourceType": { "type": "string" }, "version": { "type": "integer", "minimum": 1 } } } }, "required": ["eventType", "payload"] }
+  ]
+}

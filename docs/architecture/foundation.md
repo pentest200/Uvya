@@ -13,10 +13,10 @@ The local Compose stack contains:
 - a Go WebSocket gateway process with connection lifecycle reserved for the realtime milestone;
 - PostgreSQL for relational persistence;
 - Redis for TTL-backed ephemeral state and future connection routing;
-- Kafka in single-node KRaft mode for future durable asynchronous events;
+- Kafka in single-node KRaft mode as the durable asynchronous event backbone;
 - MinIO for local S3-compatible object storage.
 
-The API gateway now exposes the authentication foundation documented separately: PostgreSQL-backed accounts, devices, sessions, and audit records; JWT access tokens; rotated opaque refresh tokens; and Redis-backed login/OTP state. Its Phase 1 data foundation adds PostgreSQL-backed chats, memberships, explicitly sequenced messages, inbox/read state, reactions, versions, blocks, idempotency records, and a transactional outbox. Message HTTP endpoints, sophisticated Kafka consumers, and WebSocket authentication remain future contracts.
+The API gateway now exposes the authentication foundation documented separately: PostgreSQL-backed accounts, devices, sessions, and audit records; JWT access tokens; rotated opaque refresh tokens; and Redis-backed login/OTP state. Its data foundation adds PostgreSQL-backed chats, memberships, explicitly sequenced messages, inbox/read state, reactions, versions, blocks, idempotency records, a transactional outbox, and a Kafka producer/consumer framework with retries, dead letters, idempotency, correlation metadata, and lag metrics. Message HTTP endpoints and WebSocket authentication remain future contracts.
 
 ## Target evolution
 
@@ -68,8 +68,8 @@ This is a target boundary map. A service becomes real only when its contract, ow
 2. Gateway memory is connection state only; it is never the offline message store.
 3. `clientMessageId` is the idempotency key for client retries.
 4. Ordering is scoped per chat. A global order is neither required nor promised.
-5. Important database-originated events use a transactional outbox.
-6. Consumers are idempotent and can be retried.
+5. Important database-originated events use a transactional outbox and Kafka publisher.
+6. Consumers use at-least-once delivery, durable idempotency records, retries, and dead letters.
 7. Direct chats and small groups start with fan-out-on-write. Large groups and channels can use fan-out-on-read or a hybrid model later.
 8. Redis TTLs hold presence, typing, and connection-routing state; PostgreSQL or a later durable message store holds offline messages.
 

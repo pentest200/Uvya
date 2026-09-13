@@ -2,7 +2,7 @@
 
 Durable event envelopes are versioned under `v1/`. Every event uses the same required
 envelope: `eventId` (UUID), `eventType`, `eventVersion`, `occurredAt` (UTC RFC 3339),
-`traceId`, `idempotencyKey`, and a structured `payload`. Consumers must use the event
+`traceId`, `correlationId`, `idempotencyKey`, and a structured `payload`. Consumers must use the event
 type and version together and must tolerate additive payload fields.
 
 | Schema | Payload contract |
@@ -18,8 +18,11 @@ type and version together and must tolerate additive payload fields.
 | `group.member.added.v1` | Chat, member, and role. |
 | `group.member.removed.v1` | Chat and removed member identity. |
 | `notification.requested.v1` | Notification identity, recipient, template, and provider-neutral data. |
+| `search.index.requested.v1` | Search document identity and the source aggregate version to index. |
+| `moderation.reported.v1` | Report identity, reported resource, reporter, and moderation reason. |
+| `analytics.event.v1` | Privacy-reviewed analytics name, actor, aggregate, and event properties. |
 
 The API gateway currently produces `chat.created`, `group.member.added`,
 `group.member.removed`, `message.created`, `message.edited`, `message.read`, and reaction
-events through the data services. The remaining schemas are shared contracts for later
-domain operations; Kafka consumers are intentionally not part of Phase 1.
+events through the data services. All listed event names are provisioned as Kafka topics;
+the API gateway currently emits only the domain events produced by its implemented services.

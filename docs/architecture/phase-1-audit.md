@@ -67,8 +67,8 @@ addition to the application-level ownership check.
 
 ## Deliberately deferred
 
-- Kafka consumers and consumer retry orchestration remain deferred.
+- Kafka consumers and retry orchestration are implemented in the [Kafka event backbone](event-backbone.md).
 - No frontend or message HTTP API is added in this phase.
 - ScyllaDB remains deferred per ADR-002.
-- A production outbox worker schedule and lease protocol will be added with the first
-  Kafka publisher deployment; the current publisher interface is intentionally injectable.
+- The outbox publisher uses a locked batch and at-least-once hand-off; consumer handlers
+  use durable event IDs for idempotency.

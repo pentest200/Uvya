@@ -38,7 +38,7 @@ Readiness must include required dependency checks when the service begins using 
 
 - Version public HTTP routes under `/api/v1` once a business route exists.
 - Use explicit request/response schemas and pagination for unbounded collections.
-- Durable events include `eventId`, `eventType`, `schemaVersion`, `occurredAt`, `producer`, and `correlationId`.
+- Durable events include `eventId`, `eventType`, `eventVersion`, `occurredAt`, `traceId`, `correlationId`, and `idempotencyKey`.
 - Schema changes are backward-compatible where possible and are reviewed as architecture changes when they alter ownership or delivery guarantees.
 
 ## Database changes

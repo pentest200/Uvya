@@ -11,7 +11,10 @@ public enum EventType {
     CHAT_CREATED("chat.created"),
     GROUP_MEMBER_ADDED("group.member.added"),
     GROUP_MEMBER_REMOVED("group.member.removed"),
-    NOTIFICATION_REQUESTED("notification.requested");
+    NOTIFICATION_REQUESTED("notification.requested"),
+    SEARCH_INDEX_REQUESTED("search.index.requested"),
+    MODERATION_REPORTED("moderation.reported"),
+    ANALYTICS_EVENT("analytics.event");
 
     private final String value;
 

@@ -10,6 +10,7 @@ import com.uvya.apigateway.data.domain.OutboxEventEntity;
 public class OutboxEventFactory {
     public OutboxEventEntity toEntity(DomainEvent event, String aggregateType, UUID aggregateId) {
         return new OutboxEventEntity(event.eventId(), event.eventType(), event.eventVersion(), event.occurredAt(),
-                event.traceId(), event.idempotencyKey(), aggregateType, aggregateId, event.payload());
+                event.traceId(), event.correlationId(), event.idempotencyKey(), aggregateType, aggregateId,
+                event.payload());
     }
 }

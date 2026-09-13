@@ -30,4 +30,16 @@ public class OutboxPublicationService {
         event.markPublished(Instant.now());
         repository.save(event);
     }
+
+    @Transactional
+    public int publishAvailable(OutboxPublisher publisher) {
+        int published = 0;
+        for (OutboxEventEntity event : repository
+                .findTop100ByPublishedAtIsNullAndAvailableAtLessThanEqualOrderByAvailableAtAscOccurredAtAsc(
+                        Instant.now())) {
+            publish(event.getEventId(), publisher);
+            published++;
+        }
+        return published;
+    }
 }

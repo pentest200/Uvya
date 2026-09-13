@@ -14,6 +14,7 @@ This milestone provides:
 - architecture documentation and ADRs for the initial system shape and MVP message-storage choice;
 - a Spring Security authentication foundation with PostgreSQL accounts/devices/sessions/audit records, JWT access tokens, rotated opaque refresh cookies, and Redis-backed login/OTP state;
 - a Phase 1 PostgreSQL data foundation with chats, memberships, explicitly sequenced messages, reactions, versions, inbox/read state, blocks, idempotency, a transactional outbox, and versioned event schemas;
+- an activated Kafka event backbone with an idempotent producer, consumer groups, immediate/delayed retries, dead-letter topics, correlation IDs, durable consumer idempotency, health, and lag metrics;
 - a User Service foundation with privacy-aware profiles, discoverability, blocked-user enforcement, paginated lookup, hashed contact matching, mutual-contact detection, and Redis profile caching;
 - a Chat Service foundation with direct/group/channel models, centralized session/device/role authorization, paginated membership access, channel posting policy, and membership race protection;
 - Dockerfiles, Compose orchestration, and GitHub Actions checks.
@@ -136,8 +137,8 @@ flowchart LR
     Web -.->|Future WebSocket protocol| WS[Go WebSocket gateway\n:8081]
 
     API -.->|Future owned APIs| Domain[Domain services]
-    WS -.->|Future durable event consumption| Kafka[(Kafka\nKRaft)]
-    API -.->|Future durable writes / outbox| Postgres[(PostgreSQL)]
+    WS -.->|Durable event integration| Kafka[(Kafka\nKRaft)]
+    API -->|Transactional outbox + publisher| Postgres[(PostgreSQL)]
     API -.->|Future ephemeral state| Redis[(Redis\nTTL state)]
     API -.->|Future object storage| MinIO[(MinIO\nS3-compatible)]
 
@@ -146,7 +147,7 @@ flowchart LR
     WS -.-> Redis
 ```
 
-Solid edges represent the currently runnable entry points. Dashed edges are deliberate future integration boundaries; no business feature is implied by this foundation.
+Solid edges represent the currently runnable entry points. Dashed edges are deliberate future integration boundaries; the API-to-Kafka event backbone is active for the listed domain events.
 
 ## Engineering conventions
 
@@ -161,4 +162,4 @@ Solid edges represent the currently runnable entry points. Dashed edges are deli
 
 ## Current scope and next milestone
 
-Authentication details and security invariants are documented in [the authentication architecture](docs/architecture/authentication.md). Phase 1 persistence, shared event contracts, the User Service, and the Chat Service are documented in [the data-foundation audit](docs/architecture/phase-1-audit.md), [the contracts package](packages/contracts/events/README.md), [the User Service architecture](docs/architecture/user-service.md), and [the Chat Service architecture](docs/architecture/chat-service.md). Message HTTP APIs, frontend functionality, and Kafka consumers remain future milestones.
+Authentication details and security invariants are documented in [the authentication architecture](docs/architecture/authentication.md). Persistence, shared event contracts, the activated [Kafka event backbone](docs/architecture/event-backbone.md), the User Service, and the Chat Service are documented in [the data-foundation audit](docs/architecture/phase-1-audit.md), [the contracts package](packages/contracts/events/README.md), [the User Service architecture](docs/architecture/user-service.md), and [the Chat Service architecture](docs/architecture/chat-service.md). Message HTTP APIs and frontend functionality remain future milestones.

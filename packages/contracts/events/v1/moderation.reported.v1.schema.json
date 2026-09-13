@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://uvya.dev/contracts/events/v1/moderation.reported.v1.schema.json",
+  "title": "Uvya moderation.reported v1",
+  "allOf": [
+    { "$ref": "./event-envelope.v1.schema.json" },
+    { "properties": { "eventType": { "const": "moderation.reported" }, "payload": { "type": "object", "required": ["reportId", "resourceId", "resourceType", "reporterId", "reason"], "properties": { "reportId": { "type": "string", "format": "uuid" }, "resourceId": { "type": "string", "format": "uuid" }, "resourceType": { "type": "string" }, "reporterId": { "type": "string", "format": "uuid" }, "reason": { "type": "string" } } } }, "required": ["eventType", "payload"] }
+  ]
+}

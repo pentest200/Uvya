@@ -41,6 +41,9 @@ class EventContractTest {
                 Arguments.of("/contracts/events/v1/chat.created.v1.schema.json", "chat.created"),
                 Arguments.of("/contracts/events/v1/group.member.added.v1.schema.json", "group.member.added"),
                 Arguments.of("/contracts/events/v1/group.member.removed.v1.schema.json", "group.member.removed"),
-                Arguments.of("/contracts/events/v1/notification.requested.v1.schema.json", "notification.requested"));
+                Arguments.of("/contracts/events/v1/notification.requested.v1.schema.json", "notification.requested"),
+                Arguments.of("/contracts/events/v1/search.index.requested.v1.schema.json", "search.index.requested"),
+                Arguments.of("/contracts/events/v1/moderation.reported.v1.schema.json", "moderation.reported"),
+                Arguments.of("/contracts/events/v1/analytics.event.v1.schema.json", "analytics.event"));
     }
 }

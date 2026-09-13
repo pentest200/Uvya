@@ -9,6 +9,12 @@ spring:
       ddl-auto: create-drop
   flyway:
     enabled: false
+  kafka:
+    bootstrap-servers: localhost:19092
+    listener:
+      auto-startup: false
+    admin:
+      auto-create: false
   data:
     redis:
       url: redis://localhost:6379
@@ -19,6 +25,13 @@ management:
       enabled: false
 
 uvya:
+  events:
+    kafka:
+      enabled: false
+      health:
+        enabled: false
+    outbox:
+      enabled: false
   auth:
     refresh-token-pepper: test-refresh-token-pepper-with-at-least-32-chars
     jwt:

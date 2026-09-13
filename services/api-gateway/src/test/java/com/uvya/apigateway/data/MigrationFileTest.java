@@ -51,6 +51,13 @@ class MigrationFileTest {
                 "CREATE TABLE auth_sessions", "CREATE TABLE auth_audit_logs", "CREATE TABLE chats");
     }
 
+    @Test
+    void eventBackboneMigrationAddsCorrelationAndConsumerIdempotency() throws IOException {
+        String migration = migration("/db/migration/V5__event_backbone.sql");
+        assertThat(migration).contains("correlation_id", "CREATE TABLE processed_events",
+                "UNIQUE (consumer_group, event_id)", "processed_at");
+    }
+
     private String migration(String resource) throws IOException {
         try (InputStream stream = getClass().getResourceAsStream(resource)) {
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);

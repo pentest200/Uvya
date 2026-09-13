@@ -30,6 +30,8 @@ public class OutboxEventEntity {
     private Instant occurredAt;
     @Column(name = "trace_id", nullable = false, length = 128)
     private String traceId;
+    @Column(name = "correlation_id", nullable = false, length = 128)
+    private String correlationId;
     @Column(name = "idempotency_key", nullable = false, length = 255)
     private String idempotencyKey;
     @Column(name = "aggregate_type", nullable = false, length = 64)
@@ -52,11 +54,19 @@ public class OutboxEventEntity {
     public OutboxEventEntity(UUID eventId, String eventType, int eventVersion, Instant occurredAt,
             String traceId, String idempotencyKey, String aggregateType, UUID aggregateId,
             JsonNode payload) {
+        this(eventId, eventType, eventVersion, occurredAt, traceId, traceId, idempotencyKey, aggregateType,
+                aggregateId, payload);
+    }
+
+    public OutboxEventEntity(UUID eventId, String eventType, int eventVersion, Instant occurredAt,
+            String traceId, String correlationId, String idempotencyKey, String aggregateType, UUID aggregateId,
+            JsonNode payload) {
         this.eventId = eventId;
         this.eventType = eventType;
         this.eventVersion = eventVersion;
         this.occurredAt = occurredAt;
         this.traceId = traceId;
+        this.correlationId = correlationId;
         this.idempotencyKey = idempotencyKey;
         this.aggregateType = aggregateType;
         this.aggregateId = aggregateId;
@@ -70,6 +80,7 @@ public class OutboxEventEntity {
     public int getEventVersion() { return eventVersion; }
     public Instant getOccurredAt() { return occurredAt; }
     public String getTraceId() { return traceId; }
+    public String getCorrelationId() { return correlationId; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getAggregateType() { return aggregateType; }
     public UUID getAggregateId() { return aggregateId; }
