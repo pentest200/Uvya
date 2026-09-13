@@ -11,13 +11,17 @@ public interface EventPartitionKeyResolver {
     class Default implements EventPartitionKeyResolver {
         @Override
         public String key(EventEnvelope event) {
-            String payloadKey = switch (event.eventType()) {
-                case String type when type.startsWith("message.reaction.") -> value(event, "messageId");
-                case String type when type.startsWith("message.") -> value(event, "chatId");
-                case String type when type.startsWith("presence.") -> value(event, "userId");
-                case String type when type.startsWith("notification.") -> value(event, "userId");
-                default -> null;
-            };
+            String type = event.eventType();
+            String payloadKey;
+            if (type.startsWith("message.reaction.")) {
+                payloadKey = value(event, "messageId");
+            } else if (type.startsWith("message.")) {
+                payloadKey = value(event, "chatId");
+            } else if (type.startsWith("presence.") || type.startsWith("notification.")) {
+                payloadKey = value(event, "userId");
+            } else {
+                payloadKey = null;
+            }
             return payloadKey != null ? payloadKey : event.payload().path("chatId").asText(event.eventId().toString());
         }
 
