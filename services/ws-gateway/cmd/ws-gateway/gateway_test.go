@@ -93,7 +93,7 @@ func TestHandshakeRequiresValidAccessToken(t *testing.T) {
 	deviceID := "33333333-3333-4333-8333-333333333333"
 	_, server, _ := testGateway(t, &fakeMessageRouter{}, &fakeSyncProvider{}, userID, deviceID)
 	defer server.Close()
-	endpoint := "ws" + strings.TrimPrefix(server, "http") + "/ws?deviceId=" + deviceID
+	endpoint := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?deviceId=" + deviceID
 	_, response, err := websocket.DefaultDialer.Dial(endpoint, nil)
 	if err == nil {
 		t.Fatal("expected unauthenticated handshake to be rejected")
@@ -215,9 +215,9 @@ func signWithTestKey(t *testing.T, validator *accessTokenValidator, userID, devi
 	return signed
 }
 
-func dialTestConnection(t *testing.T, server, token, deviceID string) (*websocket.Conn, *http.Response) {
+func dialTestConnection(t *testing.T, server *httptest.Server, token, deviceID string) (*websocket.Conn, *http.Response) {
 	t.Helper()
-	endpoint := "ws" + strings.TrimPrefix(server, "http") + "/ws?access_token=" + url.QueryEscape(token) + "&deviceId=" + deviceID
+	endpoint := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?access_token=" + url.QueryEscape(token) + "&deviceId=" + deviceID
 	connection, response, err := websocket.DefaultDialer.Dial(endpoint, nil)
 	if err != nil {
 		t.Fatalf("dial websocket: %v", err)

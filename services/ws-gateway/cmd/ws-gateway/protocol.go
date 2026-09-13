@@ -158,8 +158,9 @@ func isUUID(value string) bool {
 			}
 			continue
 		}
-		if !((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')
-			|| (character >= 'A' && character <= 'F')) {
+		if !((character >= '0' && character <= '9') ||
+			(character >= 'a' && character <= 'f') ||
+			(character >= 'A' && character <= 'F')) {
 			return false
 		}
 	}
