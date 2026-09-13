@@ -10,13 +10,14 @@ The local Compose stack contains:
 
 - a Next.js web shell;
 - a Spring Boot HTTP API gateway;
-- a Go WebSocket gateway process with connection lifecycle reserved for the realtime milestone;
+- a Go WebSocket gateway process for authenticated realtime connections, Redis-backed
+  routing metadata, heartbeat, reconnect synchronization, and bounded socket queues;
 - PostgreSQL for relational persistence;
 - Redis for TTL-backed ephemeral state and future connection routing;
 - Kafka in single-node KRaft mode as the durable asynchronous event backbone;
 - MinIO for local S3-compatible object storage.
 
-The API gateway now exposes the authentication foundation documented separately: PostgreSQL-backed accounts, devices, sessions, and audit records; JWT access tokens; rotated opaque refresh tokens; and Redis-backed login/OTP state. Its data foundation adds PostgreSQL-backed chats, memberships, explicitly sequenced messages, inbox/read state, reactions, versions, blocks, idempotency records, a transactional outbox, and a Kafka producer/consumer framework with retries, dead letters, idempotency, correlation metadata, and lag metrics. Message HTTP endpoints and WebSocket authentication remain future contracts.
+The API gateway now exposes the authentication foundation documented separately: PostgreSQL-backed accounts, devices, sessions, and audit records; JWT access tokens; rotated opaque refresh tokens; and Redis-backed login/OTP state. Its data foundation adds PostgreSQL-backed chats, memberships, explicitly sequenced messages, inbox/read state, reactions, versions, blocks, idempotency records, a transactional outbox, and a Kafka producer/consumer framework with retries, dead letters, idempotency, correlation metadata, and lag metrics. The Go WebSocket gateway authenticates the same access tokens, keeps only live sockets in memory, stores distributed connection metadata in Redis, and delegates durable writes and resume reads to the API gateway.
 
 ## Target evolution
 

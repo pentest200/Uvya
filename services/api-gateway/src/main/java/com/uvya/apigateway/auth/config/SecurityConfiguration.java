@@ -63,7 +63,8 @@ public class SecurityConfiguration {
                                 new AntPathRequestMatcher("/v1/chats/*/messages/*", HttpMethod.DELETE.name())))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/health/**", "/actuator/health/**", "/v1/auth/csrf").permitAll()
+                        .requestMatchers("/health/**", "/actuator/health/**", "/v1/auth/csrf",
+                                "/.well-known/jwks.json").permitAll()
                         .requestMatchers(HttpMethod.POST, "/v1/auth/register", "/v1/auth/login", "/v1/auth/refresh",
                                 "/v1/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.POST, "/v1/auth/devices").authenticated()

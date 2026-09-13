@@ -23,6 +23,9 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
     List<MessageEntity> findByChatIdAndSequenceNumberLessThanOrderBySequenceNumberDesc(UUID chatId,
             long sequenceNumber, Pageable pageable);
 
+    List<MessageEntity> findByChatIdAndSequenceNumberGreaterThanOrderBySequenceNumberAsc(UUID chatId,
+            long sequenceNumber, Pageable pageable);
+
     List<MessageEntity> findByChatIdOrderBySequenceNumberDesc(UUID chatId, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

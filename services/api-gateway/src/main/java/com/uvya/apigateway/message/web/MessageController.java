@@ -43,9 +43,10 @@ public class MessageController {
 
     @GetMapping
     public MessageHistoryResponse history(@PathVariable UUID chatId,
-            @RequestParam(required = false) String before, @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String before, @RequestParam(required = false) String after,
+            @RequestParam(defaultValue = "50") int size,
             @AuthenticationPrincipal Jwt jwt, HttpServletRequest httpRequest) {
-        return messageService.history(context(jwt, httpRequest), chatId, before, size);
+        return messageService.history(context(jwt, httpRequest), chatId, before, after, size);
     }
 
     @PatchMapping("/{messageId}")

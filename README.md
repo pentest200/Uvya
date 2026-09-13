@@ -9,7 +9,9 @@ This milestone provides:
 - a clean monorepo layout and contribution conventions;
 - a minimal Next.js web shell;
 - a Spring Boot HTTP API gateway with liveness/readiness endpoints and request ID propagation;
-- a Go WebSocket gateway process with liveness/readiness endpoints and graceful shutdown;
+- a Go WebSocket gateway with authenticated handshakes, Redis-backed connection routing,
+  multi-device delivery, reconnect synchronization, bounded backpressure, heartbeat,
+  graceful shutdown, and connection/reconnect metrics;
 - local PostgreSQL, Redis, Kafka in single-node KRaft mode, and MinIO;
 - architecture documentation and ADRs for the initial system shape and MVP message-storage choice;
 - a Spring Security authentication foundation with PostgreSQL accounts/devices/sessions/audit records, JWT access tokens, rotated opaque refresh cookies, and Redis-backed login/OTP state;
@@ -134,7 +136,7 @@ docs/adr                 Architecture decision records
 flowchart LR
     Browser[Browser] --> Web[Next.js web shell]
     Web -->|HTTP / X-Request-ID| API[Spring Boot API gateway\n:8080]
-    Web -.->|Future WebSocket protocol| WS[Go WebSocket gateway\n:8081]
+    Web -->|Authenticated WebSocket| WS[Go WebSocket gateway\n:8081]
 
     API -.->|Future owned APIs| Domain[Domain services]
     WS -.->|Durable event integration| Kafka[(Kafka\nKRaft)]
@@ -144,7 +146,7 @@ flowchart LR
 
     Domain -.-> Postgres
     Domain -.-> Kafka
-    WS -.-> Redis
+    WS --> Redis
 ```
 
 Solid edges represent the currently runnable entry points. Dashed edges are deliberate future integration boundaries; the API-to-Kafka event backbone is active for the listed domain events.

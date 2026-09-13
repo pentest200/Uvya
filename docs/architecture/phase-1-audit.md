@@ -28,6 +28,10 @@ Audit performed before the Phase 1 additions. The existing authentication migrat
 - Atomic message creation: the chat counter lock, message insert, idempotency record,
   and `message.created` outbox insert execute in one transaction.
 - Versioned JSON event schemas and documentation for all Phase 1 event types.
+- Authenticated WebSocket gateway connections with Redis-backed registration/routing,
+  heartbeat, reconnect synchronization, bounded backpressure, and connection metrics.
+- Durable message HTTP send/history endpoints used by the WebSocket gateway for persistence
+  and resume reads.
 - Integration coverage for persistence, ordering, replay prevention, relationships,
   outbox atomicity, audit reuse, and the important repository access paths.
 
@@ -65,10 +69,10 @@ V2 also adds an additive `(devices.id, devices.user_id)` key so the message fore
 enforces that `sender_device_id` belongs to `sender_id` at the database boundary, in
 addition to the application-level ownership check.
 
-## Deliberately deferred
+## Scope notes
 
 - Kafka consumers and retry orchestration are implemented in the [Kafka event backbone](event-backbone.md).
-- No frontend or message HTTP API is added in this phase.
+- The frontend client has not yet been wired to the WebSocket protocol.
 - ScyllaDB remains deferred per ADR-002.
 - The outbox publisher uses a locked batch and at-least-once hand-off; consumer handlers
   use durable event IDs for idempotency.

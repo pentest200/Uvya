@@ -88,15 +88,39 @@ public class MessageApplicationService {
 
     @Transactional(readOnly = true)
     public MessageHistoryResponse history(ChatAccessContext context, UUID chatId, String before, int size) {
+        return history(context, chatId, before, null, size);
+    }
+
+    @Transactional(readOnly = true)
+    public MessageHistoryResponse history(ChatAccessContext context, UUID chatId, String before, String after,
+            int size) {
         ChatEntity chat = chat(chatId);
         policy.authorize(context, chat, ChatAction.VIEW);
         if (size < 1 || size > MAX_PAGE_SIZE) {
             throw new MessageValidationException("size must be between 1 and " + MAX_PAGE_SIZE);
         }
-        Long cursor = parseCursor(before);
-        List<MessageEntity> newestFirst = cursor == null
+        Long beforeCursor = parseCursor(before, "before");
+        Long afterCursor = parseCursor(after, "after");
+        if (beforeCursor != null && afterCursor != null) {
+            throw new MessageValidationException("before and after cannot be used together");
+        }
+        if (afterCursor != null) {
+            List<MessageEntity> oldestFirst = messageRepository
+                    .findByChatIdAndSequenceNumberGreaterThanOrderBySequenceNumberAsc(chatId, afterCursor,
+                            PageRequest.of(0, size + 1));
+            boolean hasMore = oldestFirst.size() > size;
+            if (hasMore) {
+                oldestFirst = new ArrayList<>(oldestFirst.subList(0, size));
+            }
+            String nextCursor = oldestFirst.isEmpty() ? after : Long.toString(
+                    oldestFirst.get(oldestFirst.size() - 1).getSequenceNumber());
+            List<MessageResponse> chronological = oldestFirst.stream().map(MessageResponse::from).toList();
+            return new MessageHistoryResponse(chronological, nextCursor, hasMore);
+        }
+
+        List<MessageEntity> newestFirst = beforeCursor == null
                 ? messageRepository.findByChatIdOrderBySequenceNumberDesc(chatId, PageRequest.of(0, size + 1))
-                : messageRepository.findByChatIdAndSequenceNumberLessThanOrderBySequenceNumberDesc(chatId, cursor,
+                : messageRepository.findByChatIdAndSequenceNumberLessThanOrderBySequenceNumberDesc(chatId, beforeCursor,
                         PageRequest.of(0, size + 1));
         boolean hasMore = newestFirst.size() > size;
         if (hasMore) {
@@ -194,18 +218,18 @@ public class MessageApplicationService {
         return chatRepository.findById(chatId).orElseThrow(() -> new MessageNotFoundException("Chat not found"));
     }
 
-    private Long parseCursor(String before) {
-        if (before == null || before.isBlank()) {
+    private Long parseCursor(String value, String name) {
+        if (value == null || value.isBlank()) {
             return null;
         }
         try {
-            long cursor = Long.parseLong(before);
+            long cursor = Long.parseLong(value);
             if (cursor < 1) {
                 throw new NumberFormatException();
             }
             return cursor;
         } catch (NumberFormatException exception) {
-            throw new MessageValidationException("before must be a positive sequence cursor");
+            throw new MessageValidationException(name + " must be a positive sequence cursor");
         }
     }
 
