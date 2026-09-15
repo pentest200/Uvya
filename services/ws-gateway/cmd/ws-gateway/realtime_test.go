@@ -110,6 +110,32 @@ func TestReconnectKeepsPresenceOnlineUntilLastDeviceDisconnects(t *testing.T) {
 	})
 }
 
+func TestTouchRefreshesPresenceSubscriptions(t *testing.T) {
+	metadata := newMemoryMetadataStore()
+	gateway := newGatewayWithDependencies(loadConfig(), slog.New(slog.NewTextHandler(io.Discard, nil)), "gateway-test",
+		metadata, &fakeMessageRouter{}, &fakeSyncProvider{}, noopCommandRouter{}, nil)
+	connection := &connection{gateway: gateway, userID: "11111111-1111-4111-8111-111111111111",
+		deviceID: "22222222-2222-4222-8222-222222222222", connectionID: "connection-1"}
+	targetA := "33333333-3333-4333-8333-333333333333"
+	targetB := "44444444-4444-4444-8444-444444444444"
+	gateway.realtime.mu.Lock()
+	gateway.realtime.presenceSubscriptions[connection.connectionID] = map[string]struct{}{targetA: {}, targetB: {}}
+	gateway.realtime.mu.Unlock()
+
+	gateway.realtime.touch(connection)
+
+	subscribersA, err := metadata.PresenceSubscribers(context.Background(), targetA)
+	if err != nil { t.Fatal(err) }
+	if len(subscribersA) != 1 || subscribersA[0].UserID != connection.userID || subscribersA[0].DeviceID != connection.deviceID {
+		t.Fatalf("expected refreshed subscriber for %s, got %+v", targetA, subscribersA)
+	}
+	subscribersB, err := metadata.PresenceSubscribers(context.Background(), targetB)
+	if err != nil { t.Fatal(err) }
+	if len(subscribersB) != 1 || subscribersB[0].UserID != connection.userID || subscribersB[0].DeviceID != connection.deviceID {
+		t.Fatalf("expected refreshed subscriber for %s, got %+v", targetB, subscribersB)
+	}
+}
+
 func TestMessagePersistenceSurvivesEphemeralStateFailure(t *testing.T) {
 	messageID := "55555555-5555-4555-8555-555555555555"
 	chatID := "22222222-2222-4222-8222-222222222222"

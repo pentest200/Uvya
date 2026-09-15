@@ -188,12 +188,14 @@ func (manager *realtimeStateManager) touch(connection *connection) {
 	if state.Visibility == "invisible" { state.Status = "offline" } else { state.Status = "online" }
 	manager.presence[connection.userID] = state
 	targets := manager.subscriptionTargetsLocked(connection.connectionID)
+	refreshedTargets := make([]string, 0, len(targets))
+	for target := range targets { refreshedTargets = append(refreshedTargets, target) }
 	manager.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := manager.store.SetPresence(ctx, state, manager.gateway.cfg.presenceTTL); err != nil { manager.degraded("presence", err) }
-	if len(targets) > 0 {
-		if err := manager.store.RefreshPresenceSubscriptions(ctx, connection.userID, connection.deviceID, targets,
+	if len(refreshedTargets) > 0 {
+		if err := manager.store.RefreshPresenceSubscriptions(ctx, connection.userID, connection.deviceID, refreshedTargets,
 			manager.gateway.cfg.presenceSubscriptionTTL); err != nil { manager.degraded("presence", err) }
 	}
 }
