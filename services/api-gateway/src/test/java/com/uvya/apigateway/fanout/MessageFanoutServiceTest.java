@@ -85,6 +85,7 @@ class MessageFanoutServiceTest {
     @Test
     void offlineRecipientGetsDurableNotificationInsteadOfAnUnboundedRedisQueue() {
         EventEnvelope event = createdEvent("WRITE");
+        when(deviceDirectory.activeDevices(senderId)).thenReturn(List.of());
         when(deviceDirectory.activeDevices(recipientId)).thenReturn(List.of());
         OutboxEventEntity notification = new OutboxEventEntity(UUID.randomUUID(), "notification.requested", 1,
                 Instant.now(), "trace", "notification-key", "MESSAGE", messageId,
@@ -129,6 +130,7 @@ class MessageFanoutServiceTest {
     void gatewayFailureLeavesTheDurableAttemptForRetryAndIsRedeliverable() {
         EventEnvelope event = createdEvent("WRITE");
         ActiveDevice recipientDevice = new ActiveDevice(recipientId, UUID.randomUUID(), "recipient", "gateway-a");
+        when(deviceDirectory.activeDevices(senderId)).thenReturn(List.of());
         when(deviceDirectory.activeDevices(recipientId)).thenReturn(List.of(recipientDevice));
         when(deliveryState.markPending(any(), any(), any(), anyLong(), any(), anyInt()))
                 .thenReturn(true);
@@ -161,6 +163,7 @@ class MessageFanoutServiceTest {
     @Test
     void workerRestartMayRedeliverBeforeAckButDurableStateStopsItAfterAck() {
         EventEnvelope event = createdEvent("WRITE");
+        when(deviceDirectory.activeDevices(senderId)).thenReturn(List.of());
         when(deviceDirectory.activeDevices(recipientId)).thenReturn(List.of(
                 new ActiveDevice(recipientId, UUID.randomUUID(), "recipient", "gateway-a")));
         when(deliveryState.markPending(any(), any(), any(), anyLong(), any(), anyInt()))
