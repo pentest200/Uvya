@@ -16,6 +16,11 @@ type gatewayMetrics struct {
 	messagesFailed  atomic.Uint64
 	resumes         atomic.Uint64
 	routeDrops      atomic.Uint64
+	presenceUpdates atomic.Uint64
+	presenceDegraded atomic.Uint64
+	typingUpdates   atomic.Uint64
+	typingDegraded  atomic.Uint64
+	redisDegraded   atomic.Uint64
 }
 
 func newGatewayMetrics(gatewayID string) *gatewayMetrics {
@@ -41,4 +46,14 @@ func (metrics *gatewayMetrics) handler(writer http.ResponseWriter, _ *http.Reque
 		metrics.gatewayID, metrics.resumes.Load())
 	fmt.Fprintf(writer, "# TYPE ws_gateway_route_drops_total counter\nws_gateway_route_drops_total{gateway_id=\"%s\"} %d\n",
 		metrics.gatewayID, metrics.routeDrops.Load())
+	fmt.Fprintf(writer, "# TYPE ws_gateway_presence_updates_total counter\nws_gateway_presence_updates_total{gateway_id=\"%s\"} %d\n",
+		metrics.gatewayID, metrics.presenceUpdates.Load())
+	fmt.Fprintf(writer, "# TYPE ws_gateway_presence_degraded_total counter\nws_gateway_presence_degraded_total{gateway_id=\"%s\"} %d\n",
+		metrics.gatewayID, metrics.presenceDegraded.Load())
+	fmt.Fprintf(writer, "# TYPE ws_gateway_typing_updates_total counter\nws_gateway_typing_updates_total{gateway_id=\"%s\"} %d\n",
+		metrics.gatewayID, metrics.typingUpdates.Load())
+	fmt.Fprintf(writer, "# TYPE ws_gateway_typing_degraded_total counter\nws_gateway_typing_degraded_total{gateway_id=\"%s\"} %d\n",
+		metrics.gatewayID, metrics.typingDegraded.Load())
+	fmt.Fprintf(writer, "# TYPE ws_gateway_redis_degraded_total counter\nws_gateway_redis_degraded_total{gateway_id=\"%s\"} %d\n",
+		metrics.gatewayID, metrics.redisDegraded.Load())
 }

@@ -39,6 +39,14 @@ public class MessageEntity {
     private UUID replyToMessageId;
     @Column(name = "forwarded_from_message_id")
     private UUID forwardedFromMessageId;
+    @Column(name = "thread_root_message_id")
+    private UUID threadRootMessageId;
+    @Column(name = "forwarded_from_chat_id")
+    private UUID forwardedFromChatId;
+    @Column(name = "forwarded_from_sender_id")
+    private UUID forwardedFromSenderId;
+    @Column(name = "forwarded_from_created_at")
+    private Instant forwardedFromCreatedAt;
     @Column(nullable = false)
     private Instant createdAt;
     private Instant editedAt;
@@ -54,6 +62,15 @@ public class MessageEntity {
     public MessageEntity(UUID messageId, UUID chatId, UUID senderId, UUID senderDeviceId,
             UUID clientMessageId, long sequenceNumber, String messageType, String body,
             UUID replyToMessageId, UUID forwardedFromMessageId, Instant createdAt) {
+        this(messageId, chatId, senderId, senderDeviceId, clientMessageId, sequenceNumber, messageType, body,
+                replyToMessageId, forwardedFromMessageId, null, null, null, null, createdAt);
+    }
+
+    public MessageEntity(UUID messageId, UUID chatId, UUID senderId, UUID senderDeviceId,
+            UUID clientMessageId, long sequenceNumber, String messageType, String body,
+            UUID replyToMessageId, UUID forwardedFromMessageId, UUID threadRootMessageId,
+            UUID forwardedFromChatId, UUID forwardedFromSenderId, Instant forwardedFromCreatedAt,
+            Instant createdAt) {
         this.messageId = messageId;
         this.chatId = chatId;
         this.senderId = senderId;
@@ -64,6 +81,10 @@ public class MessageEntity {
         this.body = body;
         this.replyToMessageId = replyToMessageId;
         this.forwardedFromMessageId = forwardedFromMessageId;
+        this.threadRootMessageId = threadRootMessageId;
+        this.forwardedFromChatId = forwardedFromChatId;
+        this.forwardedFromSenderId = forwardedFromSenderId;
+        this.forwardedFromCreatedAt = forwardedFromCreatedAt;
         this.createdAt = createdAt;
         this.version = 1;
         this.status = MessageStatus.ACTIVE;
@@ -79,6 +100,10 @@ public class MessageEntity {
     public String getBody() { return body; }
     public UUID getReplyToMessageId() { return replyToMessageId; }
     public UUID getForwardedFromMessageId() { return forwardedFromMessageId; }
+    public UUID getThreadRootMessageId() { return threadRootMessageId; }
+    public UUID getForwardedFromChatId() { return forwardedFromChatId; }
+    public UUID getForwardedFromSenderId() { return forwardedFromSenderId; }
+    public Instant getForwardedFromCreatedAt() { return forwardedFromCreatedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getEditedAt() { return editedAt; }
     public Instant getDeletedAt() { return deletedAt; }

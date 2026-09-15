@@ -129,6 +129,38 @@ func TestHeartbeatAckAndBackpressureClose(t *testing.T) {
 	}
 }
 
+func TestDeliveryAcknowledgementIsForwardedToDurableAPI(t *testing.T) {
+	chatID := "22222222-2222-4222-8222-222222222222"
+	messageID := "55555555-5555-4555-8555-555555555555"
+	userID := "11111111-1111-4111-8111-111111111111"
+	var got http.Request
+	api := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		got = *request
+		if request.URL.Path == "/v1/chats/"+chatID+"/messages/"+messageID+"/delivery" {
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		}
+		writer.WriteHeader(http.StatusBadRequest)
+	}))
+	defer api.Close()
+
+	cfg := loadConfig()
+	cfg.apiBaseURL = api.URL
+	cfg.apiTimeout = time.Second
+	router := newAPICommandRouter(cfg)
+	err := router.Handle(context.Background(), authContext{UserID: userID, AccessToken: "access-token"},
+		clientEnvelope{Type: messageDelivered, RequestID: "ack-1", ChatID: chatID, MessageID: messageID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Header.Get("Authorization") != "Bearer access-token" {
+		t.Fatalf("expected bearer token, got %q", got.Header.Get("Authorization"))
+	}
+	if got.Header.Get("Idempotency-Key") != messageID+":"+userID {
+		t.Fatalf("expected stable acknowledgement key, got %q", got.Header.Get("Idempotency-Key"))
+	}
+}
+
 type fakeMessageRouter struct {
 	mu     sync.Mutex
 	result persistedMessage

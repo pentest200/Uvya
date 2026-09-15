@@ -38,6 +38,8 @@ class EventContractTest {
                         "message.reaction.added"),
                 Arguments.of("/contracts/events/v1/message.reaction.removed.v1.schema.json",
                         "message.reaction.removed"),
+                Arguments.of("/contracts/events/v1/message.pinned.v1.schema.json", "message.pinned"),
+                Arguments.of("/contracts/events/v1/message.unpinned.v1.schema.json", "message.unpinned"),
                 Arguments.of("/contracts/events/v1/chat.created.v1.schema.json", "chat.created"),
                 Arguments.of("/contracts/events/v1/group.member.added.v1.schema.json", "group.member.added"),
                 Arguments.of("/contracts/events/v1/group.member.removed.v1.schema.json", "group.member.removed"),

@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -19,6 +20,8 @@ import com.uvya.apigateway.auth.service.AuditService;
 import com.uvya.apigateway.auth.service.RequestContext;
 import com.uvya.apigateway.chat.service.ChatAuthorizationPolicy;
 import com.uvya.apigateway.data.domain.ChatEntity;
+import com.uvya.apigateway.data.domain.ChatMemberEntity;
+import com.uvya.apigateway.data.domain.ChatType;
 import com.uvya.apigateway.data.domain.IdempotencyKeyEntity;
 import com.uvya.apigateway.data.domain.MessageEntity;
 import com.uvya.apigateway.data.event.DomainEvent;
@@ -30,6 +33,7 @@ import com.uvya.apigateway.data.repository.IdempotencyKeyRepository;
 import com.uvya.apigateway.data.repository.MessageRepository;
 import com.uvya.apigateway.data.repository.OutboxEventRepository;
 import com.uvya.apigateway.data.repository.UserInboxRepository;
+import com.uvya.apigateway.events.config.FanoutProperties;
 
 @Service
 public class MessageService {
@@ -44,13 +48,14 @@ public class MessageService {
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
     private final ChatAuthorizationPolicy chatAuthorizationPolicy;
+    private final FanoutProperties fanoutProperties;
 
     public MessageService(ChatRepository chatRepository, ChatMemberRepository memberRepository,
             MessageRepository messageRepository, UserInboxRepository inboxRepository,
             IdempotencyKeyRepository idempotencyRepository,
             OutboxEventRepository outboxRepository, DeviceRepository deviceRepository,
             OutboxEventFactory eventFactory, ObjectMapper objectMapper, AuditService auditService,
-            ChatAuthorizationPolicy chatAuthorizationPolicy) {
+            ChatAuthorizationPolicy chatAuthorizationPolicy, FanoutProperties fanoutProperties) {
         this.chatRepository = chatRepository;
         this.memberRepository = memberRepository;
         this.messageRepository = messageRepository;
@@ -62,6 +67,7 @@ public class MessageService {
         this.objectMapper = objectMapper;
         this.auditService = auditService;
         this.chatAuthorizationPolicy = chatAuthorizationPolicy;
+        this.fanoutProperties = fanoutProperties;
     }
 
     @Transactional
@@ -114,17 +120,26 @@ public class MessageService {
             return duplicate;
         }
 
-        validateReply(command.replyToMessageId(), chat.getId());
-        validateForward(command.forwardedFromMessageId(), command.senderId());
+        MessageEntity reply = validateReply(command.replyToMessageId(), chat.getId());
+        MessageEntity forwarded = validateForward(command.forwardedFromMessageId(), command.senderId());
+        UUID threadRootMessageId = validateThreadRoot(command.threadRootMessageId(), chat.getId());
         Instant now = Instant.now();
         long sequence = chat.nextMessageSequence(now);
         MessageEntity message = new MessageEntity(UUID.randomUUID(), chat.getId(), command.senderId(),
                 command.senderDeviceId(), command.clientMessageId(), sequence, command.messageType(),
                 command.body() == null ? "" : command.body(), command.replyToMessageId(),
-                command.forwardedFromMessageId(), now);
+                command.forwardedFromMessageId(), threadRootMessageId,
+                forwarded == null ? null : forwarded.getChatId(),
+                forwarded == null ? null : forwarded.getSenderId(),
+                forwarded == null ? null : forwarded.getCreatedAt(), now);
         chatRepository.save(chat);
         messageRepository.save(message);
-        memberRepository.findByIdChatIdAndLeftAtIsNullOrderByJoinedAtAsc(chat.getId()).forEach(member ->
+        long memberCount = memberRepository.countByIdChatIdAndLeftAtIsNull(chat.getId());
+        boolean fanoutOnWrite = chat.getChatType() == ChatType.DIRECT
+                || memberCount <= fanoutProperties.getSmallGroupMemberLimit();
+        List<ChatMemberEntity> activeMembers = fanoutOnWrite
+                ? memberRepository.findByIdChatIdAndLeftAtIsNullOrderByJoinedAtAsc(chat.getId()) : List.of();
+        activeMembers.forEach(member ->
                 inboxRepository.save(new com.uvya.apigateway.data.domain.UserInboxEntity(member.getUserId(),
                         message.getMessageId(), message.getChatId(), message.getSequenceNumber(), now)));
         idempotencyRepository.save(new IdempotencyKeyEntity(UUID.randomUUID(), command.senderId(),
@@ -144,6 +159,17 @@ public class MessageService {
         putNullable(payload, "forwardedFromMessageId", message.getForwardedFromMessageId());
         payload.put("version", message.getVersion());
         payload.put("status", message.getStatus().name());
+        putNullable(payload, "threadRootMessageId", message.getThreadRootMessageId());
+        putNullable(payload, "forwardedFromChatId", message.getForwardedFromChatId());
+        putNullable(payload, "forwardedFromSenderId", message.getForwardedFromSenderId());
+        putNullableInstant(payload, "forwardedFromCreatedAt", message.getForwardedFromCreatedAt());
+        payload.put("replyToDeleted", reply != null
+                && reply.getStatus() == com.uvya.apigateway.data.domain.MessageStatus.DELETED);
+        payload.put("fanoutMode", fanoutOnWrite ? "WRITE" : "READ");
+        if (fanoutOnWrite) {
+            var recipientUserIds = payload.putArray("recipientUserIds");
+            activeMembers.forEach(member -> recipientUserIds.add(member.getUserId().toString()));
+        }
         outboxRepository.save(eventFactory.toEntity(new DomainEvent(UUID.randomUUID(),
                 EventType.MESSAGE_CREATED.value(), 1, now, command.traceId(), idempotencyKey, payload),
                 "MESSAGE", message.getMessageId()));
@@ -152,20 +178,23 @@ public class MessageService {
         return message;
     }
 
-    private void validateReply(UUID messageId, UUID chatId) {
+    private MessageEntity validateReply(UUID messageId, UUID chatId) {
         if (messageId == null) {
-            return;
+            return null;
         }
         MessageEntity reference = messageRepository.findById(messageId)
                 .orElseThrow(() -> new DataFoundationException("Referenced message not found"));
         if (!chatId.equals(reference.getChatId())) {
             throw new DataFoundationException("Referenced message belongs to another chat");
         }
+        // A soft-deleted message remains a valid reference. Consumers receive
+        // replyToDeleted and can render a tombstone without dereferencing body.
+        return reference;
     }
 
-    private void validateForward(UUID messageId, UUID senderId) {
+    private MessageEntity validateForward(UUID messageId, UUID senderId) {
         if (messageId == null) {
-            return;
+            return null;
         }
         MessageEntity reference = messageRepository.findById(messageId)
                 .orElseThrow(() -> new DataFoundationException("Forwarded message not found"));
@@ -173,6 +202,19 @@ public class MessageService {
                 || !memberRepository.isActiveMember(reference.getChatId(), senderId)) {
             throw new DataFoundationException("Forwarded message is not available");
         }
+        return reference;
+    }
+
+    private UUID validateThreadRoot(UUID messageId, UUID chatId) {
+        if (messageId == null) {
+            return null;
+        }
+        MessageEntity root = messageRepository.findById(messageId)
+                .orElseThrow(() -> new DataFoundationException("Thread root message not found"));
+        if (!chatId.equals(root.getChatId())) {
+            throw new DataFoundationException("Thread root belongs to another chat");
+        }
+        return root.getThreadRootMessageId() == null ? root.getMessageId() : root.getThreadRootMessageId();
     }
 
     private boolean messageMatches(MessageCreationCommand command, MessageEntity message) {
@@ -182,14 +224,16 @@ public class MessageService {
                 && command.messageType().equals(message.getMessageType())
                 && java.util.Objects.equals(command.body() == null ? "" : command.body(), message.getBody())
                 && java.util.Objects.equals(command.replyToMessageId(), message.getReplyToMessageId())
-                && java.util.Objects.equals(command.forwardedFromMessageId(), message.getForwardedFromMessageId());
+                && java.util.Objects.equals(command.forwardedFromMessageId(), message.getForwardedFromMessageId())
+                && java.util.Objects.equals(command.threadRootMessageId(), message.getThreadRootMessageId());
     }
 
     private String requestHash(MessageCreationCommand command) {
         String material = String.join("|", command.chatId().toString(), command.senderId().toString(),
                 command.senderDeviceId().toString(), command.clientMessageId().toString(),
                 String.valueOf(command.messageType()), String.valueOf(command.body()),
-                String.valueOf(command.replyToMessageId()), String.valueOf(command.forwardedFromMessageId()));
+                String.valueOf(command.replyToMessageId()), String.valueOf(command.forwardedFromMessageId()),
+                String.valueOf(command.threadRootMessageId()));
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(material.getBytes(StandardCharsets.UTF_8)));
@@ -199,6 +243,14 @@ public class MessageService {
     }
 
     private void putNullable(ObjectNode payload, String field, UUID value) {
+        if (value == null) {
+            payload.putNull(field);
+        } else {
+            payload.put(field, value.toString());
+        }
+    }
+
+    private void putNullableInstant(ObjectNode payload, String field, Instant value) {
         if (value == null) {
             payload.putNull(field);
         } else {

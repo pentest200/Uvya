@@ -40,6 +40,11 @@ public class EventConsumerFramework {
     }
 
     public void consume(ConsumerRecord<String, String> record, Consumer<?, ?> consumer) {
+        consume(record, consumer, properties.getConsumer().getGroupId(), null);
+    }
+
+    public void consume(ConsumerRecord<String, String> record, Consumer<?, ?> consumer, String consumerGroup,
+            EventConsumerHandler handlerOverride) {
         EventEnvelope event;
         try {
             event = codec.read(record.value());
@@ -47,7 +52,7 @@ public class EventConsumerFramework {
             metrics.malformed();
             throw exception;
         }
-        recordLag(record, consumer);
+        recordLag(record, consumer, consumerGroup);
         waitForDelayedRetry(record);
         Timer.Sample sample = metrics.startProcessing();
         String previousTraceId = MDC.get("traceId");
@@ -55,8 +60,10 @@ public class EventConsumerFramework {
         MDC.put("traceId", event.traceId());
         MDC.put("correlationId", event.correlationId());
         try {
-            idempotentConsumer.consume(properties.getConsumer().getGroupId(), event, record.topic(),
-                    record.partition(), record.offset(), handlerRegistry.handlerFor(event.eventType()));
+            EventConsumerHandler handler = handlerOverride == null
+                    ? handlerRegistry.handlerFor(event.eventType()) : handlerOverride;
+            idempotentConsumer.consume(consumerGroup, event, record.topic(), record.partition(), record.offset(),
+                    handler);
         } catch (RuntimeException exception) {
             retryPublisher.publish(record, event, exception);
         } finally {
@@ -87,15 +94,14 @@ public class EventConsumerFramework {
         }
     }
 
-    private void recordLag(ConsumerRecord<String, String> record, Consumer<?, ?> consumer) {
+    private void recordLag(ConsumerRecord<String, String> record, Consumer<?, ?> consumer, String consumerGroup) {
         if (consumer == null) {
             return;
         }
         TopicPartition partition = new TopicPartition(record.topic(), record.partition());
         try {
             long highWatermark = consumer.endOffsets(Set.of(partition)).getOrDefault(partition, record.offset() + 1);
-            metrics.lag(properties.getConsumer().getGroupId(), record.topic(), record.partition(),
-                    highWatermark - record.offset() - 1);
+            metrics.lag(consumerGroup, record.topic(), record.partition(), highWatermark - record.offset() - 1);
         } catch (RuntimeException ignored) {
             // Lag is diagnostic; it must not prevent a durable event from being handled.
         }

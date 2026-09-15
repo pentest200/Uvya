@@ -60,6 +60,22 @@ class IdempotentEventConsumerIntegrationTest {
         assertThat(processedEventRepository.countByConsumerGroup("search-workers")).isEqualTo(1);
     }
 
+    @Test
+    void fanoutKafkaRedeliveryRunsTheFanoutHandlerOncePerEventId() {
+        EventEnvelope event = new EventEnvelope(UUID.randomUUID(), "message.created", 1, Instant.now(),
+                "trace-id", "correlation-id", UUID.randomUUID().toString(), objectMapper.createObjectNode()
+                        .put("messageId", UUID.randomUUID().toString()));
+        AtomicInteger fanoutAttempts = new AtomicInteger();
+
+        assertThat(consumer.consume("uvya-fanout", event, "message.created", 0, 20,
+                ignored -> fanoutAttempts.incrementAndGet())).isTrue();
+        assertThat(consumer.consume("uvya-fanout", event, "message.created", 0, 21,
+                ignored -> fanoutAttempts.incrementAndGet())).isFalse();
+
+        assertThat(fanoutAttempts).hasValue(1);
+        assertThat(processedEventRepository.countByConsumerGroup("uvya-fanout")).isEqualTo(1);
+    }
+
     private EventEnvelope event() {
         return new EventEnvelope(UUID.randomUUID(), "notification.requested", 1, Instant.now(), "trace-id",
                 "correlation-id", UUID.randomUUID().toString(), objectMapper.createObjectNode()

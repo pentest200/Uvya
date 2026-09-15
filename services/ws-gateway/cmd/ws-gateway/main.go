@@ -34,6 +34,10 @@ type config struct {
 	redisDB                  int
 	redisKeyPrefix           string
 	connectionMetadataTTL    time.Duration
+	presenceTTL              time.Duration
+	typingTTL                time.Duration
+	presenceSubscriptionTTL  time.Duration
+	presenceDebounce         time.Duration
 	jwtIssuer                string
 	jwtPublicKeyBase64       string
 	jwtPublicKeyFile         string
@@ -199,6 +203,10 @@ func loadConfig() config {
 		redisDB:               parseIntEnv("REDIS_DB", 0),
 		redisKeyPrefix:        envOrDefault("REDIS_KEY_PREFIX", "uvya:ws"),
 		connectionMetadataTTL: parseDurationEnv("CONNECTION_METADATA_TTL", 2*time.Minute),
+		presenceTTL:           parseDurationEnv("PRESENCE_TTL", 2*time.Minute),
+		typingTTL:             parseDurationEnv("TYPING_TTL", 8*time.Second),
+		presenceSubscriptionTTL: parseDurationEnv("PRESENCE_SUBSCRIPTION_TTL", 15*time.Minute),
+		presenceDebounce:      parseDurationEnv("PRESENCE_DEBOUNCE", 500*time.Millisecond),
 		jwtIssuer:             envOrDefaultFirst("UVYA_JWT_ISSUER", "JWT_ISSUER", "http://localhost:8080"),
 		jwtPublicKeyBase64:    envOrDefaultFirst("UVYA_JWT_PUBLIC_KEY_BASE64", "JWT_PUBLIC_KEY_BASE64", ""),
 		jwtPublicKeyFile:      envOrDefault("JWT_PUBLIC_KEY_FILE", ""),

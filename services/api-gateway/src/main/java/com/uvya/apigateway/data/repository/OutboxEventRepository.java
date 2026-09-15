@@ -14,6 +14,8 @@ import com.uvya.apigateway.data.domain.OutboxEventEntity;
 public interface OutboxEventRepository extends JpaRepository<OutboxEventEntity, UUID> {
     long countByPublishedAtIsNull();
 
+    boolean existsByEventTypeAndIdempotencyKey(String eventType, String idempotencyKey);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<OutboxEventEntity> findTop100ByPublishedAtIsNullAndAvailableAtLessThanEqualOrderByAvailableAtAscOccurredAtAsc(
             Instant now);

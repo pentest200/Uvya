@@ -9,12 +9,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.uvya.apigateway.data.domain.ReadStateEntity;
+import com.uvya.apigateway.data.domain.UserInboxEntity;
 import com.uvya.apigateway.data.event.DomainEvent;
 import com.uvya.apigateway.data.event.EventType;
 import com.uvya.apigateway.data.event.OutboxEventFactory;
 import com.uvya.apigateway.data.repository.ChatMemberRepository;
 import com.uvya.apigateway.data.repository.OutboxEventRepository;
 import com.uvya.apigateway.data.repository.ReadStateRepository;
+import com.uvya.apigateway.data.repository.UserInboxRepository;
 
 @Service
 public class ReadStateService {
@@ -23,15 +25,17 @@ public class ReadStateService {
     private final OutboxEventRepository outboxRepository;
     private final OutboxEventFactory eventFactory;
     private final ObjectMapper objectMapper;
+    private final UserInboxRepository inboxRepository;
 
     public ReadStateService(ChatMemberRepository memberRepository, ReadStateRepository readStateRepository,
             OutboxEventRepository outboxRepository, OutboxEventFactory eventFactory,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper, UserInboxRepository inboxRepository) {
         this.memberRepository = memberRepository;
         this.readStateRepository = readStateRepository;
         this.outboxRepository = outboxRepository;
         this.eventFactory = eventFactory;
         this.objectMapper = objectMapper;
+        this.inboxRepository = inboxRepository;
     }
 
     @Transactional
@@ -49,6 +53,11 @@ public class ReadStateService {
             state.advanceTo(sequence, now);
         }
         readStateRepository.save(state);
+        for (UserInboxEntity inbox : inboxRepository.findByIdUserIdAndChatIdAndSequenceLessThanEqual(
+                userId, chatId, state.getLastReadSequence())) {
+            inbox.markRead(now);
+            inboxRepository.save(inbox);
+        }
         ObjectNode payload = objectMapper.createObjectNode();
         payload.put("chatId", chatId.toString());
         payload.put("userId", userId.toString());

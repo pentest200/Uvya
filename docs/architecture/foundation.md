@@ -72,7 +72,7 @@ This is a target boundary map. A service becomes real only when its contract, ow
 5. Important database-originated events use a transactional outbox and Kafka publisher.
 6. Consumers use at-least-once delivery, durable idempotency records, retries, and dead letters.
 7. Direct chats and small groups start with fan-out-on-write. Large groups and channels can use fan-out-on-read or a hybrid model later.
-8. Redis TTLs hold presence, typing, and connection-routing state; PostgreSQL or a later durable message store holds offline messages.
+8. Redis TTLs hold presence, typing, and connection-routing state; PostgreSQL or a later durable message store holds offline messages. The [ephemeral realtime state design](realtime-state.md) scopes presence updates to subscriptions and defines Redis degradation behavior.
 
 ## Deployment progression
 

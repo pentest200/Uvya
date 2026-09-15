@@ -30,6 +30,10 @@ Audit performed before the Phase 1 additions. The existing authentication migrat
 - Versioned JSON event schemas and documentation for all Phase 1 event types.
 - Authenticated WebSocket gateway connections with Redis-backed registration/routing,
   heartbeat, reconnect synchronization, bounded backpressure, and connection metrics.
+- Kafka message fan-out with direct/small-group fan-out-on-write, large-group hybrid
+  fan-out-on-read, durable `PENDING`/`PERSISTED`/`DELIVERED`/`READ`/`FAILED` delivery
+  state, authenticated acknowledgements, durable offline notifications, retry, and
+  idempotent replay handling.
 - Durable message HTTP send/history endpoints used by the WebSocket gateway for persistence
   and resume reads.
 - Integration coverage for persistence, ordering, replay prevention, relationships,
@@ -72,6 +76,9 @@ addition to the application-level ownership check.
 ## Scope notes
 
 - Kafka consumers and retry orchestration are implemented in the [Kafka event backbone](event-backbone.md).
+- Message delivery is at-least-once at the network boundary; device acknowledgements,
+  inbox state, and consumer-group event IDs make replay safe without claiming global
+  exactly-once behavior across PostgreSQL, Kafka, Redis, and notification providers.
 - The frontend client has not yet been wired to the WebSocket protocol.
 - ScyllaDB remains deferred per ADR-002.
 - The outbox publisher uses a locked batch and at-least-once hand-off; consumer handlers

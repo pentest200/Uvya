@@ -58,6 +58,23 @@ class MigrationFileTest {
                 "UNIQUE (consumer_group, event_id)", "processed_at");
     }
 
+    @Test
+    void deliveryMigrationAddsDurableStateAndBoundedRetryMetadata() throws IOException {
+        String migration = migration("/db/migration/V6__message_delivery_state.sql");
+        assertThat(migration).contains("delivery_state", "delivery_attempts", "last_delivery_attempt_at",
+                "PENDING", "PERSISTED", "DELIVERED", "READ", "FAILED",
+                "ix_user_inbox_pending_delivery");
+    }
+
+    @Test
+    void interactionMigrationAddsThreadAndForwardOriginMetadataWithoutMovingReactionsIntoMessages() throws IOException {
+        String migration = migration("/db/migration/V7__message_interactions.sql");
+        assertThat(migration).contains("thread_root_message_id", "forwarded_from_chat_id",
+                "forwarded_from_sender_id", "forwarded_from_created_at", "ix_messages_thread_root_sequence",
+                "fk_messages_thread_root");
+        assertThat(migration).doesNotContain("ALTER TABLE message_reactions");
+    }
+
     private String migration(String resource) throws IOException {
         try (InputStream stream = getClass().getResourceAsStream(resource)) {
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);

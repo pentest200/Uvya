@@ -71,6 +71,16 @@ info:
     description: HTTP edge process with authentication foundation
 
 uvya:
+  fanout:
+    enabled: ${UVYA_FANOUT_ENABLED:true}
+    small-group-member-limit: ${UVYA_FANOUT_SMALL_GROUP_MEMBER_LIMIT:100}
+    consumer-group: ${UVYA_FANOUT_CONSUMER_GROUP:uvya-fanout}
+    consumer-concurrency: ${UVYA_FANOUT_CONSUMER_CONCURRENCY:3}
+    max-delivery-attempts: ${UVYA_FANOUT_MAX_DELIVERY_ATTEMPTS:5}
+    retry-after: ${UVYA_FANOUT_RETRY_AFTER:PT30S}
+    retry-poll-interval: ${UVYA_FANOUT_RETRY_POLL_INTERVAL:PT5S}
+    retry-poll-interval-ms: ${UVYA_FANOUT_RETRY_POLL_INTERVAL_MS:5000}
+    redis-key-prefix: ${REDIS_KEY_PREFIX:uvya:ws}
   events:
     kafka:
       enabled: ${UVYA_KAFKA_ENABLED:true}

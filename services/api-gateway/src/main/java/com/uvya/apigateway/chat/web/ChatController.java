@@ -1,6 +1,7 @@
 package com.uvya.apigateway.chat.web;
 
 import java.util.UUID;
+import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -90,6 +91,12 @@ public class ChatController {
             @AuthenticationPrincipal Jwt jwt, HttpServletRequest httpRequest) {
         Page<ChatMemberResponse> result = chatService.members(context(jwt, httpRequest), chatId, page, size);
         return ChatPageResponse.from(result);
+    }
+
+    @GetMapping("/{chatId}/realtime-members")
+    public Map<String, Object> realtimeMembers(@PathVariable UUID chatId, @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest httpRequest) {
+        return Map.of("userIds", chatService.realtimeMembers(context(jwt, httpRequest), chatId));
     }
 
     private ChatAccessContext context(Jwt jwt, HttpServletRequest request) {

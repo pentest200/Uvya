@@ -25,6 +25,8 @@ management:
       enabled: false
 
 uvya:
+  fanout:
+    enabled: false
   events:
     kafka:
       enabled: false

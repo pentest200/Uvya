@@ -6,6 +6,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +32,7 @@ import com.uvya.apigateway.auth.service.AuthRateLimiter;
 import com.uvya.apigateway.data.domain.ChatEntity;
 import com.uvya.apigateway.data.domain.ChatMemberRole;
 import com.uvya.apigateway.data.domain.ChatType;
+import com.uvya.apigateway.data.domain.DeliveryState;
 import com.uvya.apigateway.data.domain.MessageEntity;
 import com.uvya.apigateway.data.domain.MessageStatus;
 import com.uvya.apigateway.data.domain.OutboxEventEntity;
@@ -105,7 +111,9 @@ class DataFoundationIntegrationTest {
         }
         List<String> requiredColumns = List.of("MESSAGE_ID", "CHAT_ID", "SENDER_ID", "SENDER_DEVICE_ID",
                 "CLIENT_MESSAGE_ID", "SEQUENCE", "MESSAGE_TYPE", "BODY", "REPLY_TO_MESSAGE_ID",
-                "FORWARDED_FROM_MESSAGE_ID", "CREATED_AT", "EDITED_AT", "DELETED_AT", "VERSION", "STATUS");
+                "FORWARDED_FROM_MESSAGE_ID", "THREAD_ROOT_MESSAGE_ID", "FORWARDED_FROM_CHAT_ID",
+                "FORWARDED_FROM_SENDER_ID", "FORWARDED_FROM_CREATED_AT", "CREATED_AT", "EDITED_AT",
+                "DELETED_AT", "VERSION", "STATUS");
         for (String column : requiredColumns) {
             Integer count = jdbcTemplate.queryForObject(
                     "select count(*) from information_schema.columns where table_name = 'MESSAGES'"
@@ -160,8 +168,13 @@ class DataFoundationIntegrationTest {
 
         MessageEntity edited = versionService.edit(sender.getId(), message.getMessageId(), "TEXT", "after",
                 "trace-edit", key());
-        reactionService.add(recipient.getId(), message.getMessageId(), "like", "trace-reaction-add", key());
-        reactionService.remove(recipient.getId(), message.getMessageId(), "like", "trace-reaction-remove", key());
+        var addedReaction = reactionService.add(recipient.getId(), message.getMessageId(), "like",
+                "trace-reaction-add", key());
+        assertThat(addedReaction.counts()).containsEntry("like", 1L);
+        assertThat(addedReaction.myReactions()).containsExactly("like");
+        var removedReaction = reactionService.remove(recipient.getId(), message.getMessageId(), "like",
+                "trace-reaction-remove", key());
+        assertThat(removedReaction.counts()).doesNotContainKey("like");
         readStateService.markRead(recipient.getId(), chat.getId(), edited.getSequenceNumber(), "trace-read", key());
         blockedUserService.block(sender.getId(), recipient.getId());
 
@@ -172,6 +185,8 @@ class DataFoundationIntegrationTest {
         assertThat(reactionRepository.findByIdMessageIdOrderByCreatedAtAsc(message.getMessageId())).isEmpty();
         assertThat(readStateRepository.findById(new com.uvya.apigateway.data.domain.ReadStateId(chat.getId(),
                 recipient.getId()))).get().extracting(state -> state.getLastReadSequence()).isEqualTo(1L);
+        assertThat(inboxRepository.findById(new com.uvya.apigateway.data.domain.UserInboxId(recipient.getId(),
+                message.getMessageId())).orElseThrow().getDeliveryState()).isEqualTo(DeliveryState.READ);
         assertThat(blockedUserRepository.existsBlock(sender.getId(), recipient.getId())).isTrue();
         assertThat(auditLogRepository.countByEventType("MESSAGE_CREATED")).isGreaterThanOrEqualTo(1);
         blockedUserService.unblock(sender.getId(), recipient.getId());
@@ -209,6 +224,43 @@ class DataFoundationIntegrationTest {
         assertThat(messageRepository.findByChatIdOrderBySequenceNumberAsc(chat.getId())).isEmpty();
         assertThat(idempotencyRepository.findByUserIdAndIdempotencyKey(sender.getId(), duplicateOutboxKey))
                 .isEmpty();
+    }
+
+    @Test
+    void concurrentDuplicateReactionRequestsCreateOneDedicatedRowAndOneEvent() throws Exception {
+        UserEntity user = user();
+        DeviceEntity device = device(user.getId());
+        ChatEntity chat = chatService.createChat(user.getId(), ChatType.DIRECT, null, "trace-chat", key());
+        MessageEntity message = messageService.create(new MessageCreationCommand(chat.getId(), user.getId(),
+                device.getId(), UUID.randomUUID(), "TEXT", "react concurrently", null, null,
+                "trace-message", key()));
+
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> addReactionAfter(start, user.getId(), message.getMessageId(), "like"));
+            Future<?> second = executor.submit(() -> addReactionAfter(start, user.getId(), message.getMessageId(), "like"));
+            start.countDown();
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(reactionRepository.findByIdMessageIdOrderByCreatedAtAsc(message.getMessageId())).hasSize(1);
+        assertThat(outboxRepository.findAll().stream().filter(event ->
+                "message.reaction.added".equals(event.getEventType())
+                        && message.getMessageId().equals(event.getAggregateId()))).hasSize(1);
+    }
+
+    private void addReactionAfter(CountDownLatch start, UUID userId, UUID messageId, String reaction) {
+        try {
+            start.await(10, TimeUnit.SECONDS);
+            reactionService.add(userId, messageId, reaction, "trace-reaction", key());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 
     private UserEntity user() {

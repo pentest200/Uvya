@@ -24,7 +24,7 @@ The domain write and its outbox row are committed together. The publisher claims
 The base topics are:
 
 `message.created`, `message.edited`, `message.deleted`, `message.delivered`, `message.read`,
-`message.reaction.added`, `message.reaction.removed`, `chat.created`, `group.member.added`,
+`message.reaction.added`, `message.reaction.removed`, `message.pinned`, `message.unpinned`, `chat.created`, `group.member.added`,
 `group.member.removed`, `notification.requested`, `search.index.requested`, `moderation.reported`,
 and `analytics.event`.
 
@@ -48,6 +48,13 @@ If Kafka cannot accept the retry publication, the listener throws and the origin
 `processed_events` has a unique constraint on `(consumer_group, event_id)`. The insert and the handler side effect share one database transaction: handler failure rolls the insert back, while a duplicate event becomes a no-op. A second consumer group may process the same event independently, as Kafka semantics require.
 
 Scale-out instances use the same configured group ID and therefore share partitions. Independent projections or services use different group IDs and each receives the full event stream.
+
+Message fan-out runs in its own `uvya-fanout` consumer group. It consumes
+`message.created`, `message.delivered`, reactions, and pin transitions (including their immediate and delayed
+retry topics), so fan-out load can scale independently from other event handlers.
+The first event determines recipients and active devices; a route is only a network
+attempt. Durable inbox state and the delivery acknowledgement endpoint own the
+delivery lifecycle.
 
 ## At-least-once is the honest guarantee
 

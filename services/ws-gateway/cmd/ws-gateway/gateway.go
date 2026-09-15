@@ -24,6 +24,7 @@ type gateway struct {
 	syncProvider    syncProvider
 	commandRouter   commandRouter
 	metrics         *gatewayMetrics
+	realtime        *realtimeStateManager
 	closeOnce       sync.Once
 }
 
@@ -37,17 +38,18 @@ func newGateway(cfg config, logger *slog.Logger) *gateway {
 	gatewayID := newRequestID()
 	metadata := newRedisMetadataStore(cfg)
 	gateway := newGatewayWithDependencies(cfg, logger, gatewayID, metadata, newAPIMessageRouter(cfg),
-		newAPISyncProvider(cfg), noopCommandRouter{}, newAccessTokenValidator(cfg))
+		newAPISyncProvider(cfg), newAPICommandRouter(cfg), newAccessTokenValidator(cfg))
 	if err := metadata.Subscribe(context.Background(), gateway.handleRoute); err != nil {
 		logger.Warn("redis_route_subscription_failed", "error", err)
 	}
+	gateway.realtime.setAuthorizer(newAPIRealtimeAuthorizer(cfg))
 	return gateway
 }
 
 func newGatewayWithDependencies(cfg config, logger *slog.Logger, gatewayID string, metadata metadataStore,
 	messageRouter messageRouter, syncProvider syncProvider, commandRouter commandRouter,
 	validator *accessTokenValidator) *gateway {
-	return &gateway{
+	gateway := &gateway{
 		cfg:           cfg,
 		logger:        logger,
 		gatewayID:     gatewayID,
@@ -59,6 +61,13 @@ func newGatewayWithDependencies(cfg config, logger *slog.Logger, gatewayID strin
 		commandRouter: commandRouter,
 		metrics:       newGatewayMetrics(gatewayID),
 	}
+	gateway.realtime = newRealtimeStateManager(gateway, metadataStoreAsEphemeral(metadata))
+	return gateway
+}
+
+func metadataStoreAsEphemeral(metadata metadataStore) ephemeralStore {
+	store, _ := metadata.(ephemeralStore)
+	return store
 }
 
 func (gateway *gateway) handler() http.Handler {
@@ -117,18 +126,19 @@ func (gateway *gateway) websocketHandler(writer http.ResponseWriter, request *ht
 		SessionID: connection.sessionID, ConnectionID: connection.connectionID, GatewayID: gateway.gatewayID,
 		LastSeen: time.Now().UTC()}
 	if err := gateway.metadata.Register(request.Context(), metadata); err != nil {
-		connection.requestClose(websocket.CloseInternalServerErr, "connection registration failed")
-		_ = ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr,
-			"connection registration failed"), time.Now().Add(gateway.cfg.writeTimeout))
-		_ = ws.Close()
-		return
+		// Redis is required for cross-gateway routing, but not for local message
+		// persistence. Keep the authenticated local socket alive in degraded mode.
+		gateway.metrics.redisDegraded.Add(1)
+		gateway.logger.Warn("redis_connection_registration_failed_local_degraded", "error", err)
 	}
 	previous := gateway.registry.register(connection)
 	gateway.metrics.connections.Store(int64(gateway.registry.count()))
 	if previous != nil {
 		gateway.metrics.reconnects.Add(1)
+		gateway.realtime.transferSubscriptions(previous, connection)
 		gateway.disconnect(previous, 4001, "device reconnected")
 	}
+	gateway.realtime.connectionOnline(connection)
 	connection.start()
 }
 
@@ -157,8 +167,31 @@ func (gateway *gateway) handleClientMessage(connection *connection, data []byte)
 	case syncResume:
 		gateway.handleSyncResume(connection, message)
 	case heartbeat:
+		gateway.realtime.touch(connection)
 		connection.enqueue(marshalEvent(outboundEnvelope{Type: heartbeatAck, RequestID: message.RequestID}))
-	case messageDelivered, messageRead, typingStart, typingStop, presenceUpdated:
+	case presenceSubscribe:
+		if err := gateway.realtime.subscribe(connection, message); err != nil {
+			gateway.realtime.degraded("presence", err)
+			connection.enqueue(errorEnvelope(message.RequestID, "presence_unavailable", "presence subscriptions are unavailable"))
+		}
+	case presenceUnsubscribe:
+		if err := gateway.realtime.unsubscribe(connection, message); err != nil {
+			gateway.realtime.degraded("presence", err)
+			connection.enqueue(errorEnvelope(message.RequestID, "presence_unavailable", "presence subscriptions are unavailable"))
+		}
+	case presenceSet, presenceUpdated:
+		if err := gateway.realtime.setPresence(connection, message); err != nil {
+			connection.enqueue(errorEnvelope(message.RequestID, "presence_unavailable", "presence is currently unavailable"))
+		}
+	case typingStart:
+		if err := gateway.realtime.startTyping(connection, message); err != nil {
+			connection.enqueue(errorEnvelope(message.RequestID, "typing_unavailable", "typing indicators are currently unavailable"))
+		}
+	case typingStop:
+		if err := gateway.realtime.stopTyping(connection, message); err != nil {
+			connection.enqueue(errorEnvelope(message.RequestID, "typing_unavailable", "typing indicators are currently unavailable"))
+		}
+	case messageDelivered, messageRead:
 		if err := gateway.commandRouter.Handle(context.Background(), connection.auth(), message); err != nil {
 			connection.enqueue(errorEnvelope(message.RequestID, "command_failed", "unable to handle command"))
 		}
@@ -233,12 +266,17 @@ func (gateway *gateway) publishRoute(route routeEnvelope) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := gateway.metadata.Publish(ctx, route); err != nil {
+		gateway.metrics.redisDegraded.Add(1)
 		gateway.logger.Warn("redis_route_publish_failed", "error", err)
 	}
 }
 
 func (gateway *gateway) handleRoute(route routeEnvelope) {
 	if route.OriginGateway == gateway.gatewayID || len(route.Event) == 0 {
+		return
+	}
+	if route.Kind == "presence" {
+		gateway.realtime.routePresenceLocal(route)
 		return
 	}
 	gateway.routeLocal(route)
@@ -271,8 +309,10 @@ func (gateway *gateway) refreshMetadata(connection *connection) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := gateway.metadata.Refresh(ctx, metadata); err != nil {
+		gateway.metrics.redisDegraded.Add(1)
 		gateway.logger.Debug("redis_connection_refresh_failed", "error", err)
 	}
+	gateway.realtime.touch(connection)
 }
 
 func (gateway *gateway) disconnect(connection *connection, code int, reason string) {
@@ -285,9 +325,12 @@ func (gateway *gateway) disconnect(connection *connection, code int, reason stri
 			LastSeen: time.Now().UTC()}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		if err := gateway.metadata.Unregister(ctx, metadata); err != nil {
+			gateway.metrics.redisDegraded.Add(1)
 			gateway.logger.Debug("redis_connection_unregister_failed", "error", err)
 		}
 		cancel()
+		gateway.realtime.disconnect(connection)
+		gateway.realtime.connectionOffline(connection)
 	})
 	connection.requestClose(code, reason)
 }
@@ -306,6 +349,7 @@ func (gateway *gateway) close(ctx context.Context) error {
 				closeErr = ctx.Err()
 			}
 		}
+		gateway.realtime.close()
 		if err := gateway.metadata.Close(); closeErr == nil {
 			closeErr = err
 		}

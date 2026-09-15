@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 const (
@@ -17,6 +18,9 @@ const (
 	messageRead      = "message.read"
 	typingStart      = "typing.start"
 	typingStop       = "typing.stop"
+	presenceSubscribe = "presence.subscribe"
+	presenceUnsubscribe = "presence.unsubscribe"
+	presenceSet       = "presence.set"
 	presenceUpdated  = "presence.updated"
 	syncResume       = "sync.resume"
 	syncDelta        = "sync.delta"
@@ -29,8 +33,12 @@ type clientEnvelope struct {
 	Type                          string            `json:"type"`
 	RequestID                     string            `json:"requestId"`
 	ChatID                        string            `json:"chatId"`
+	MessageID                     string            `json:"messageId"`
 	ClientMessageID               string            `json:"clientMessageId"`
 	DeviceID                      string            `json:"deviceId"`
+	UserIDs                       []string          `json:"userIds"`
+	Visibility                    string            `json:"visibility"`
+	Activity                      string            `json:"activity"`
 	GlobalSyncCursor              string            `json:"globalSyncCursor"`
 	PerChatCursors                map[string]string `json:"perChatCursors"`
 	LastAcknowledgedClientMessage string            `json:"lastAcknowledgedClientMessageId"`
@@ -45,6 +53,13 @@ type outboundEnvelope struct {
 	RequestID                     string            `json:"requestId,omitempty"`
 	MessageID                     string            `json:"messageId,omitempty"`
 	ChatID                        string            `json:"chatId,omitempty"`
+	UserID                        string            `json:"userId,omitempty"`
+	DeviceID                      string            `json:"deviceId,omitempty"`
+	Status                        string            `json:"status,omitempty"`
+	Visibility                    string            `json:"visibility,omitempty"`
+	Activity                      string            `json:"activity,omitempty"`
+	LastSeen                      *time.Time        `json:"lastSeen,omitempty"`
+	ExpiresAt                     *time.Time        `json:"expiresAt,omitempty"`
 	Sequence                      int64             `json:"sequence,omitempty"`
 	GlobalSyncCursor              string            `json:"globalSyncCursor,omitempty"`
 	PerChatCursors                map[string]string `json:"perChatCursors,omitempty"`

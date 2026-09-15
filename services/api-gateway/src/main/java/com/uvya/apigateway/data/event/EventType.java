@@ -8,6 +8,8 @@ public enum EventType {
     MESSAGE_READ("message.read"),
     MESSAGE_REACTION_ADDED("message.reaction.added"),
     MESSAGE_REACTION_REMOVED("message.reaction.removed"),
+    MESSAGE_PINNED("message.pinned"),
+    MESSAGE_UNPINNED("message.unpinned"),
     CHAT_CREATED("chat.created"),
     GROUP_MEMBER_ADDED("group.member.added"),
     GROUP_MEMBER_REMOVED("group.member.removed"),

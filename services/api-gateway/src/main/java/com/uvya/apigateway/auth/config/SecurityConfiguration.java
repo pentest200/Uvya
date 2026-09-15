@@ -59,6 +59,7 @@ public class SecurityConfiguration {
                                 new AntPathRequestMatcher("/v1/chats/*/members/*", HttpMethod.DELETE.name()),
                                 new AntPathRequestMatcher("/v1/chats/*/leave", HttpMethod.POST.name()),
                                 new AntPathRequestMatcher("/v1/chats/*/messages", HttpMethod.POST.name()),
+                                new AntPathRequestMatcher("/v1/chats/*/messages/*/delivery", HttpMethod.POST.name()),
                                 new AntPathRequestMatcher("/v1/chats/*/messages/*", HttpMethod.PATCH.name()),
                                 new AntPathRequestMatcher("/v1/chats/*/messages/*", HttpMethod.DELETE.name())))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -1,6 +1,8 @@
 package com.uvya.apigateway.data.service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -40,32 +42,52 @@ public class ReactionService {
     }
 
     @Transactional
-    public void add(UUID userId, UUID messageId, String reactionType, String traceId, String idempotencyKey) {
-        MessageEntity message = message(messageId);
+    public ReactionState add(UUID userId, UUID messageId, String reactionType, String traceId, String idempotencyKey) {
+        MessageEntity message = lockedMessage(messageId);
         requireMember(userId, message);
+        validateReactionType(reactionType);
         MessageReactionId reactionId = new MessageReactionId(messageId, userId, reactionType);
-        if (reactionRepository.existsById(reactionId)) {
-            return;
+        if (!reactionRepository.existsById(reactionId)) {
+            reactionRepository.save(new MessageReactionEntity(messageId, userId, reactionType, Instant.now()));
+            ReactionState state = state(userId, messageId);
+            publish(EventType.MESSAGE_REACTION_ADDED, message, userId, reactionType, traceId, idempotencyKey, state);
+            return state;
         }
-        reactionRepository.save(new MessageReactionEntity(messageId, userId, reactionType, Instant.now()));
-        publish(EventType.MESSAGE_REACTION_ADDED, message, userId, reactionType, traceId, idempotencyKey);
+        return state(userId, messageId);
     }
 
     @Transactional
-    public void remove(UUID userId, UUID messageId, String reactionType, String traceId,
+    public ReactionState remove(UUID userId, UUID messageId, String reactionType, String traceId,
             String idempotencyKey) {
-        MessageEntity message = message(messageId);
+        MessageEntity message = lockedMessage(messageId);
         requireMember(userId, message);
+        validateReactionType(reactionType);
         MessageReactionId reactionId = new MessageReactionId(messageId, userId, reactionType);
-        if (!reactionRepository.existsById(reactionId)) {
-            return;
+        if (reactionRepository.existsById(reactionId)) {
+            reactionRepository.deleteById(reactionId);
+            ReactionState state = state(userId, messageId);
+            publish(EventType.MESSAGE_REACTION_REMOVED, message, userId, reactionType, traceId, idempotencyKey, state);
+            return state;
         }
-        reactionRepository.deleteById(reactionId);
-        publish(EventType.MESSAGE_REACTION_REMOVED, message, userId, reactionType, traceId, idempotencyKey);
+        return state(userId, messageId);
     }
 
-    private MessageEntity message(UUID messageId) {
-        return messageRepository.findById(messageId)
+    @Transactional(readOnly = true)
+    public ReactionState state(UUID userId, UUID messageId) {
+        MessageEntity message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new DataFoundationException("Message not found"));
+        requireMember(userId, message);
+        LinkedHashMap<String, Long> counts = new LinkedHashMap<>();
+        for (MessageReactionRepository.ReactionCount count : reactionRepository.countByMessageId(messageId)) {
+            counts.put(count.getReactionType(), count.getReactionCount());
+        }
+        List<String> mine = reactionRepository.findByIdMessageIdAndIdUserIdOrderByCreatedAtAsc(messageId, userId)
+                .stream().map(reaction -> reaction.getId().getReactionType()).toList();
+        return new ReactionState(messageId, counts, mine);
+    }
+
+    private MessageEntity lockedMessage(UUID messageId) {
+        return messageRepository.findByIdForUpdate(messageId)
                 .orElseThrow(() -> new DataFoundationException("Message not found"));
     }
 
@@ -75,8 +97,14 @@ public class ReactionService {
         }
     }
 
+    private void validateReactionType(String reactionType) {
+        if (reactionType == null || reactionType.isBlank() || reactionType.length() > 64) {
+            throw new DataFoundationException("Reaction must be between 1 and 64 characters");
+        }
+    }
+
     private void publish(EventType type, MessageEntity message, UUID userId, String reactionType,
-            String traceId, String idempotencyKey) {
+            String traceId, String idempotencyKey, ReactionState state) {
         if (traceId == null || traceId.isBlank() || idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new DataFoundationException("traceId and idempotencyKey are required");
         }
@@ -85,6 +113,10 @@ public class ReactionService {
         payload.put("chatId", message.getChatId().toString());
         payload.put("userId", userId.toString());
         payload.put("reactionType", reactionType);
+        ObjectNode counts = payload.putObject("counts");
+        state.counts().forEach(counts::put);
+        var mine = payload.putArray("userReactions");
+        state.myReactions().forEach(mine::add);
         outboxRepository.save(eventFactory.toEntity(new DomainEvent(UUID.randomUUID(), type.value(), 1,
                 Instant.now(), traceId, idempotencyKey, payload), "MESSAGE", message.getMessageId()));
     }

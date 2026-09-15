@@ -38,6 +38,7 @@ import com.uvya.apigateway.message.web.MessageHistoryResponse;
 import com.uvya.apigateway.message.web.MessageResponse;
 import com.uvya.apigateway.message.web.PatchMessageRequest;
 import com.uvya.apigateway.message.web.SendMessageRequest;
+import com.uvya.apigateway.message.web.ThreadResponse;
 
 @Service
 public class MessageApplicationService {
@@ -78,9 +79,10 @@ public class MessageApplicationService {
         String traceId = traceId(context);
         MessageCreationCommand command = new MessageCreationCommand(chatId, context.userId(), context.deviceId(),
                 request.clientMessageId(), request.type().toLowerCase(java.util.Locale.ROOT), request.body(),
-                request.replyToMessageId(), request.forwardedFromMessageId(), traceId, idempotencyKey);
+                request.replyToMessageId(), request.forwardedFromMessageId(), request.threadRootMessageId(), traceId,
+                idempotencyKey);
         try {
-            return MessageResponse.from(messageService.create(command));
+            return response(messageService.create(command));
         } catch (DataFoundationException exception) {
             throw mapDataException(exception);
         }
@@ -114,7 +116,7 @@ public class MessageApplicationService {
             }
             String nextCursor = oldestFirst.isEmpty() ? after : Long.toString(
                     oldestFirst.get(oldestFirst.size() - 1).getSequenceNumber());
-            List<MessageResponse> chronological = oldestFirst.stream().map(MessageResponse::from).toList();
+            List<MessageResponse> chronological = oldestFirst.stream().map(this::response).toList();
             return new MessageHistoryResponse(chronological, nextCursor, hasMore);
         }
 
@@ -130,8 +132,56 @@ public class MessageApplicationService {
                 ? Long.toString(newestFirst.get(newestFirst.size() - 1).getSequenceNumber()) : null;
         newestFirst = new ArrayList<>(newestFirst);
         Collections.reverse(newestFirst);
-        List<MessageResponse> chronological = newestFirst.stream().map(MessageResponse::from).toList();
+        List<MessageResponse> chronological = newestFirst.stream().map(this::response).toList();
         return new MessageHistoryResponse(chronological, nextCursor, hasMore);
+    }
+
+    @Transactional(readOnly = true)
+    public ThreadResponse thread(ChatAccessContext context, UUID chatId, UUID threadRootMessageId, String before,
+            String after, int size) {
+        MessageEntity root = messageRepository.findById(threadRootMessageId)
+                .orElseThrow(() -> new MessageNotFoundException("Thread root message not found"));
+        if (!chatId.equals(root.getChatId())) {
+            throw new MessageNotFoundException("Thread root message not found");
+        }
+        ChatEntity chat = chat(root.getChatId());
+        policy.authorize(context, chat, ChatAction.VIEW);
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new MessageValidationException("size must be between 1 and " + MAX_PAGE_SIZE);
+        }
+        Long beforeCursor = parseCursor(before, "before");
+        Long afterCursor = parseCursor(after, "after");
+        if (beforeCursor != null && afterCursor != null) {
+            throw new MessageValidationException("before and after cannot be used together");
+        }
+        List<MessageEntity> selected;
+        boolean hasMore;
+        String nextCursor;
+        if (beforeCursor != null) {
+            selected = messageRepository
+                    .findByChatIdAndThreadRootMessageIdAndSequenceNumberLessThanOrderBySequenceNumberDesc(
+                            chat.getId(), root.getMessageId(), beforeCursor, PageRequest.of(0, size + 1));
+            hasMore = selected.size() > size;
+            if (hasMore) {
+                selected = new ArrayList<>(selected.subList(0, size));
+            }
+            Collections.reverse(selected);
+            nextCursor = hasMore && !selected.isEmpty()
+                    ? Long.toString(selected.get(0).getSequenceNumber()) : null;
+        } else {
+            long cursor = afterCursor == null ? 0 : afterCursor;
+            selected = messageRepository
+                    .findByChatIdAndThreadRootMessageIdAndSequenceNumberGreaterThanOrderBySequenceNumberAsc(
+                            chat.getId(), root.getMessageId(), cursor, PageRequest.of(0, size + 1));
+            hasMore = selected.size() > size;
+            if (hasMore) {
+                selected = new ArrayList<>(selected.subList(0, size));
+            }
+            nextCursor = selected.isEmpty() ? after
+                    : Long.toString(selected.get(selected.size() - 1).getSequenceNumber());
+        }
+        return new ThreadResponse(root.getMessageId(), response(root), selected.stream().map(this::response).toList(),
+                nextCursor, hasMore);
     }
 
     @Transactional
@@ -163,7 +213,7 @@ public class MessageApplicationService {
         saveEvent(EventType.MESSAGE_EDITED, message, context, idempotencyKey, now, payload);
         auditService.record("MESSAGE_EDITED", context.userId(), context.deviceId(), null,
                 new RequestContext(null, traceId(context), null));
-        return MessageResponse.from(message);
+        return response(message);
     }
 
     @Transactional
@@ -177,7 +227,7 @@ public class MessageApplicationService {
             throw new MessageAuthorizationException("Message deletion permission required");
         }
         if (message.getStatus() == MessageStatus.DELETED) {
-            return MessageResponse.from(message);
+            return response(message);
         }
         Instant now = Instant.now();
         message.delete(now);
@@ -186,7 +236,7 @@ public class MessageApplicationService {
         saveEvent(EventType.MESSAGE_DELETED, message, context, idempotencyKey, now, payload);
         auditService.record("MESSAGE_DELETED", context.userId(), context.deviceId(), null,
                 new RequestContext(null, traceId(context), null));
-        return MessageResponse.from(message);
+        return response(message);
     }
 
     private ChatMemberEntity authorizeView(ChatAccessContext context, ChatEntity chat) {
@@ -260,7 +310,32 @@ public class MessageApplicationService {
         }
         payload.put("version", message.getVersion());
         payload.put("status", message.getStatus().name());
+        putNullable(payload, "threadRootMessageId", message.getThreadRootMessageId());
+        putNullable(payload, "forwardedFromChatId", message.getForwardedFromChatId());
+        putNullable(payload, "forwardedFromSenderId", message.getForwardedFromSenderId());
+        if (message.getForwardedFromCreatedAt() == null) {
+            payload.putNull("forwardedFromCreatedAt");
+        } else {
+            payload.put("forwardedFromCreatedAt", message.getForwardedFromCreatedAt().toString());
+        }
+        MessageEntity reply = message.getReplyToMessageId() == null ? null
+                : messageRepository.findById(message.getReplyToMessageId()).orElse(null);
+        payload.put("replyToDeleted", reply != null && reply.getStatus() == MessageStatus.DELETED);
         return payload;
+    }
+
+    private MessageResponse response(MessageEntity message) {
+        MessageEntity reply = message.getReplyToMessageId() == null ? null
+                : messageRepository.findById(message.getReplyToMessageId()).orElse(null);
+        return MessageResponse.from(message, reply != null && reply.getStatus() == MessageStatus.DELETED);
+    }
+
+    private void putNullable(ObjectNode payload, String field, UUID value) {
+        if (value == null) {
+            payload.putNull(field);
+        } else {
+            payload.put(field, value.toString());
+        }
     }
 
     private void saveEvent(EventType type, MessageEntity message, ChatAccessContext context,

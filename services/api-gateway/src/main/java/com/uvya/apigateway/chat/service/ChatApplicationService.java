@@ -210,6 +210,14 @@ public class ChatApplicationService {
                         member.getMutedUntil(), member.getArchivedAt()));
     }
 
+    @Transactional(readOnly = true)
+    public List<UUID> realtimeMembers(ChatAccessContext context, UUID chatId) {
+        ChatEntity chat = chat(chatId);
+        policy.authorize(context, chat, ChatAction.VIEW);
+        return memberRepository.findByIdChatIdAndLeftAtIsNullOrderByJoinedAtAsc(chatId).stream()
+                .map(ChatMemberEntity::getUserId).toList();
+    }
+
     private void validateCreateRequest(ChatAccessContext context, CreateChatRequest request) {
         if (request == null || request.chatType() == null) {
             throw new ChatValidationException("Chat type is required");

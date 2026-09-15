@@ -75,6 +75,7 @@ type normalizedMessagePayload struct {
 	Body                string            `json:"body"`
 	ReplyToMessageID    string            `json:"replyToMessageId,omitempty"`
 	ForwardedFromID     string            `json:"forwardedFromMessageId,omitempty"`
+	ThreadRootMessageID string            `json:"threadRootMessageId,omitempty"`
 	Attachments         []json.RawMessage `json:"attachments,omitempty"`
 }
 
@@ -97,6 +98,7 @@ func normalizeMessagePayload(raw json.RawMessage) (normalizedMessagePayload, err
 	result := normalizedMessagePayload{Type: "text", Body: body}
 	result.ReplyToMessageID = rawString(fields, "replyToMessageId")
 	result.ForwardedFromID = rawString(fields, "forwardedFromMessageId")
+	result.ThreadRootMessageID = rawString(fields, "threadRootMessageId")
 	if attachments, ok := fields["attachments"]; ok {
 		if err := json.Unmarshal(attachments, &result.Attachments); err != nil {
 			return normalizedMessagePayload{}, errors.New("attachments is invalid")
@@ -115,6 +117,42 @@ func rawString(fields map[string]json.RawMessage, name string) string {
 
 type commandRouter interface {
 	Handle(context.Context, authContext, clientEnvelope) error
+}
+
+type apiCommandRouter struct {
+	client  *http.Client
+	baseURL string
+}
+
+func newAPICommandRouter(cfg config) *apiCommandRouter {
+	return &apiCommandRouter{client: &http.Client{Timeout: cfg.apiTimeout}, baseURL: strings.TrimRight(cfg.apiBaseURL, "/")}
+}
+
+func (router *apiCommandRouter) Handle(ctx context.Context, auth authContext, message clientEnvelope) error {
+	if message.Type != messageDelivered {
+		return nil
+	}
+	if !isUUID(message.ChatID) || !isUUID(message.MessageID) {
+		return errors.New("message.delivered requires chatId and messageId")
+	}
+	endpoint := router.baseURL + "/v1/chats/" + url.PathEscape(message.ChatID) + "/messages/" +
+		url.PathEscape(message.MessageID) + "/delivery"
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	if err != nil {
+		return errors.New("unable to create delivery acknowledgement request")
+	}
+	request.Header.Set("Authorization", "Bearer "+auth.AccessToken)
+	request.Header.Set(requestIDHeader, message.RequestID)
+	request.Header.Set("Idempotency-Key", message.MessageID+":"+auth.UserID)
+	response, err := router.client.Do(request)
+	if err != nil {
+		return errors.New("message service is unavailable")
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("delivery acknowledgement rejected request (%d)", response.StatusCode)
+	}
+	return nil
 }
 
 type noopCommandRouter struct{}
